@@ -2,7 +2,6 @@ from pyrebase.pyrebase import Database, Auth
 from typing import Dict, Any, Tuple, List
 from datetime import datetime, time, timedelta
 from flask import jsonify
-import uuid
 
 def add_score(db: Database, name, course, score):
     score_data = {

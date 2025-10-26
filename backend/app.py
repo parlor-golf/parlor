@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from backend.functions import *
+from functions import *
 from typing import Dict, Any, Tuple
 from openai import OpenAI
 import os
@@ -41,7 +41,7 @@ def submit_score():
     add_score(db, name, course, score)
     return jsonify({"message": "Score submitted!"}), 200
 
-@app.route("/delete-score/<int:score_id>", methods=["DELETE"])
+@app.route("/delete-score/<score_id>", methods=["DELETE"])
 def delete_score_route(score_id):
     delete_score(db, score_id)
     return jsonify({"message": "Score deleted"}), 200
