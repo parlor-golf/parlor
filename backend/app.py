@@ -67,5 +67,35 @@ def get_scores_route():
     data = get_scores(db, name)
     return jsonify(data)
 
+@app.route("/sign_up", methods=["POST"])
+def sign_up():
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+
+    if not all([email, password]):
+        return jsonify({"error": "Missing email or password"}), 400
+
+    try:
+        user = auth.create_user_with_email_and_password(email, password)
+        return jsonify({"message": "User created", "user": user}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/sign_in", methods=["POST"])
+def sign_in():
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+
+    if not all([email, password]):
+        return jsonify({"error": "Missing email or password"}), 400
+
+    try:
+        user = auth.sign_in_with_email_and_password(email, password)
+        return jsonify({"message": "User signed in", "user": user}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 if __name__ == "__main__":
     app.run(debug=True)
