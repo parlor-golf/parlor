@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from functions import *
 from typing import Dict, Any, Tuple
-from openai import OpenAI
 import os
 import pyrebase
 from dotenv import load_dotenv
