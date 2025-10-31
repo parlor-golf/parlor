@@ -3,8 +3,9 @@ from typing import Dict, Any, Tuple, List
 from datetime import datetime, time, timedelta
 from flask import jsonify
 
-def add_score(db: Database, name, course, score):
+def add_score(db: Database, name, uid, course, score):
     score_data = {
+        "uid": uid,
         "name": name,
         "course": course,
         "score": score,
@@ -15,15 +16,17 @@ def add_score(db: Database, name, course, score):
 def delete_score(db: Database, score_id):
     db.child("scores").child(score_id).remove()
 
-def get_scores(db: Database, name) :
+def get_scores(db: Database, uid) :
     scores = db.child("scores").get()
     results = []
     if scores.each():
         for s in scores.each():
             data = s.val()
-            if data.get("name") == name:
+            if data.get("uid") == uid:
                 results.append({
                     "id": s.key(),
+                    "uid": data.get("uid"),
+                    "name": data.get("name"),
                     "course": data.get("course"),
                     "score": data.get("score"),
                     "timestamp": data.get("timestamp")
