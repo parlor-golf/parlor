@@ -151,5 +151,141 @@ def sign_in():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+@app.route("/send_friend_request", methods=["POST"])
+def send_friend_request_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    data = request.json
+    receiver_uid = data.get("receiver_uid")
+    if not receiver_uid:
+        return jsonify({"error": "Missing receiver UID"}), 400
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        sender_uid = user_info["users"][0]["localId"]
+
+        send_friend_request(db, sender_uid, receiver_uid)
+        return jsonify({"message": "Friend request sent"}), 200
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/accept_friend_request", methods=["POST"])
+def accept_friend_request_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    data = request.json
+    sender_uid = data.get("sender_uid")
+    if not sender_uid:
+        return jsonify({"error": "Missing sender UID"}), 400
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        receiver_uid = user_info["users"][0]["localId"]
+
+        accept_friend_request(db, receiver_uid, sender_uid)
+        return jsonify({"message": "Friend request accepted"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/decline_friend_request", methods=["POST"])
+def decline_friend_request_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    data = request.json
+    sender_uid = data.get("sender_uid")
+    if not sender_uid:
+        return jsonify({"error": "Missing sender UID"}), 400
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        receiver_uid = user_info["users"][0]["localId"]
+
+        decline_friend_request(db, receiver_uid, sender_uid)
+        return jsonify({"message": "Friend request declined"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/remove_friend", methods=["POST"])
+def remove_friend_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    data = request.json
+    friend_uid = data.get("friend_uid")
+    if not friend_uid:
+        return jsonify({"error": "Missing friend UID"}), 400
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        remove_friend(db, uid, friend_uid)
+        return jsonify({"message": "Friend removed"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/friend_requests", methods=["GET"])
+def get_friend_requests_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        requests = get_friend_requests(db, uid)
+        return jsonify({"requests": requests}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/friends", methods=["GET"])
+def get_friends_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        friends = get_friends(db, uid)
+        return jsonify({"friends": friends}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/friends/scores", methods=["GET"])
+def get_friends_scores_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        data = get_friends_scores(db, uid)
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 if __name__ == "__main__":
     app.run(debug=True)
