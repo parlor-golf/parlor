@@ -1,4 +1,60 @@
-node_modules
-node_modules
-node_modules
-node_modules
+# ---------------------------------
+# --- General / OS-Specific ---
+# ---------------------------------
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# ---------------------------------
+# --- Frontend (React / Node.js) ---
+# ---------------------------------
+# Dependencies
+# This is the most important line
+frontend/node_modules/
+
+# Build output
+frontend/build/
+frontend/dist/
+frontend/.next/
+
+# Local Environment Variables (NEVER commit secrets!)
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Logs
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+
+
+# ---------------------------------
+# --- Backend (Python / Node.js) ---
+# ---------------------------------
+
+# Python (if you use it)
+backend/__pycache__/
+backend/venv/
+backend/.venv/
+backend/.env
+
+# Node.js (if you use it)
+backend/node_modules/
+backend/dist/
+backend/.env
+
+# ---------------------------------
+# --- Root Level (if any) ---
+# ---------------------------------
+# Any node_modules in the root
+node_modules/
+
+# Any .env in the root
+.env
