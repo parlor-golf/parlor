@@ -1,13 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { GolfColors } from '@/constants/theme';
+import { signUp, signIn } from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Options() {
   const [notifications, setNotifications] = useState(true);
   const [locationServices, setLocationServices] = useState(true);
   const [autoScoring, setAutoScoring] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const token = await AsyncStorage.getItem('idToken');
+    setIsAuthenticated(!!token);
+  };
+
+  const createTestAccount = async () => {
+    const testEmail = `testuser${Date.now()}@parlor.com`;
+    const testPassword = 'testpassword123';
+    const testName = 'Test Golfer';
+
+    Alert.alert('Creating Test Account', 'Please wait...');
+
+    // Sign up
+    const signUpResult = await signUp(testEmail, testPassword, testName);
+
+    if (signUpResult.error) {
+      // If sign up fails, try signing in (account may already exist)
+      const signInResult = await signIn(testEmail, testPassword);
+      if (signInResult.error) {
+        // If both fail, create a new account with timestamp
+        const newEmail = `testuser${Date.now()}@parlor.com`;
+        const finalResult = await signUp(newEmail, testPassword, testName);
+        if (finalResult.error) {
+          Alert.alert('Error', finalResult.error);
+          return;
+        }
+      }
+    }
+
+    await checkAuth();
+    Alert.alert('Success!', 'Test account created and signed in!\n\nYou can now record and save golf sessions.');
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -57,8 +98,8 @@ export default function Options() {
         <Switch
           value={value}
           onValueChange={onValueChange}
-          trackColor={{ false: '#e0e0e0', true: '#007AFF' }}
-          thumbColor={value ? '#ffffff' : '#f4f3f4'}
+          trackColor={{ false: GolfColors.lightGray, true: GolfColors.primary }}
+          thumbColor={value ? GolfColors.white : '#f4f3f4'}
         />
       )}
     </View>
@@ -151,11 +192,23 @@ export default function Options() {
         {/* Account Actions */}
         <ThemedView style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Account</ThemedText>
-          
+
+          {!isAuthenticated && (
+            <TouchableOpacity style={[styles.buttonItem, styles.testAccountButton]} onPress={createTestAccount}>
+              <Text style={[styles.buttonText, styles.testAccountText]}>Create Test Account</Text>
+            </TouchableOpacity>
+          )}
+
+          {isAuthenticated && (
+            <View style={styles.authStatus}>
+              <Text style={styles.authStatusText}>✓ Signed In</Text>
+            </View>
+          )}
+
           <TouchableOpacity style={styles.buttonItem} onPress={handleLogout}>
             <Text style={[styles.buttonText, styles.logoutText]}>Logout</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.buttonItem} onPress={handleDeleteAccount}>
             <Text style={[styles.buttonText, styles.deleteText]}>Delete Account</Text>
           </TouchableOpacity>
@@ -196,7 +249,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
-    color: '#333',
+    color: GolfColors.primaryDark,
   },
   settingItem: {
     flexDirection: 'row',
@@ -204,9 +257,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: GolfColors.cardBg,
     borderRadius: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: GolfColors.cardBgAlt,
   },
   settingText: {
     flex: 1,
@@ -215,29 +270,31 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: GolfColors.black,
   },
   settingSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: GolfColors.gray,
     marginTop: 2,
   },
   buttonItem: {
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: GolfColors.cardBg,
     borderRadius: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: GolfColors.cardBgAlt,
   },
   buttonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: GolfColors.primary,
   },
   logoutText: {
-    color: '#FF9500',
+    color: GolfColors.warning,
   },
   deleteText: {
-    color: '#FF3B30',
+    color: GolfColors.error,
   },
   infoItem: {
     paddingVertical: 8,
@@ -245,6 +302,27 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
+    color: GolfColors.gray,
+  },
+  testAccountButton: {
+    backgroundColor: GolfColors.primary,
+  },
+  testAccountText: {
+    color: GolfColors.white,
+    fontWeight: 'bold',
+  },
+  authStatus: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: GolfColors.cardBgAlt,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: GolfColors.success,
+  },
+  authStatusText: {
+    fontSize: 16,
+    color: GolfColors.success,
+    fontWeight: '600',
   },
 });

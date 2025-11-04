@@ -138,3 +138,117 @@ def is_request_pending(db: Database, sender_uid, receiver_uid) -> bool:
     sent = db.child("friend_requests").child(receiver_uid).child(sender_uid).get().val()
     received = db.child("friend_requests").child(sender_uid).child(receiver_uid).get().val()
     return bool(sent or received)
+
+# Golf Session Functions
+def create_session(db: Database, uid, session_data):
+    """
+    Create a new golf session
+    session_data should include:
+    - courseName: str
+    - holes: int (9 or 18)
+    - selectedHoles: list (optional, for 9-hole)
+    - scores: dict {hole: score}
+    - totalScore: int
+    - duration: int (seconds)
+    - startTime: str (ISO timestamp)
+    - endTime: str (ISO timestamp)
+    - privacy: str ("public", "friends", "private")
+    """
+    # Get user info
+    user_data = db.child("users").child(uid).get().val()
+    username = user_data.get("name") if user_data else "Unknown"
+
+    session = {
+        "uid": uid,
+        "username": username,
+        "courseName": session_data.get("courseName"),
+        "holes": session_data.get("holes"),
+        "selectedHoles": session_data.get("selectedHoles"),
+        "scores": session_data.get("scores"),
+        "totalScore": session_data.get("totalScore"),
+        "duration": session_data.get("duration"),
+        "startTime": session_data.get("startTime"),
+        "endTime": session_data.get("endTime"),
+        "privacy": session_data.get("privacy", "friends"),
+        "images": session_data.get("images", []),
+        "videos": session_data.get("videos", []),
+        "timestamp": datetime.now().isoformat()
+    }
+
+    session_ref = db.child("sessions").push(session)
+    return session_ref["name"]  # Return the session ID
+
+def get_user_sessions(db: Database, uid, limit=None):
+    """Get all sessions for a specific user"""
+    sessions = db.child("sessions").get()
+    results = []
+
+    if sessions.each():
+        for s in sessions.each():
+            data = s.val()
+            if data.get("uid") == uid:
+                results.append({
+                    "id": s.key(),
+                    **data
+                })
+
+    # Sort by timestamp descending (most recent first)
+    results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+    if limit:
+        results = results[:limit]
+
+    return results
+
+def get_feed_sessions(db: Database, uid, limit=20):
+    """
+    Get sessions for feed - includes:
+    - User's own sessions (if not private)
+    - Friends' sessions (if not private)
+    - League members' sessions (future)
+    """
+    friends = get_friends(db, uid)
+    sessions = db.child("sessions").get()
+    results = []
+
+    if sessions.each():
+        for s in sessions.each():
+            data = s.val()
+            session_uid = data.get("uid")
+            privacy = data.get("privacy", "friends")
+
+            # Include if:
+            # 1. It's user's own session
+            # 2. It's a friend's session and privacy is not "private"
+            # 3. It's a public session
+
+            if session_uid == uid:
+                # User's own sessions
+                results.append({
+                    "id": s.key(),
+                    **data
+                })
+            elif session_uid in friends and privacy in ["public", "friends"]:
+                # Friends' sessions
+                results.append({
+                    "id": s.key(),
+                    **data
+                })
+            elif privacy == "public":
+                # Public sessions from anyone
+                results.append({
+                    "id": s.key(),
+                    **data
+                })
+
+    # Sort by timestamp descending (most recent first)
+    results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+    if limit:
+        results = results[:limit]
+
+    return results
+
+def delete_session(db: Database, session_id):
+    """Delete a golf session"""
+    db.child("sessions").child(session_id).remove()

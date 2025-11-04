@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { GolfColors } from '@/constants/theme';
 
 interface League {
   id: string;
@@ -104,10 +105,29 @@ export default function League() {
         </ThemedView>
 
         <ScrollView style={styles.content}>
-          <ThemedView style={styles.section}>
-            <ThemedText type="subtitle">Join or Create a League</ThemedText>
-            <ThemedText>Compete with friends in weekly challenges and track your progress together.</ThemedText>
-          </ThemedView>
+          <View style={styles.heroSection}>
+            <Text style={styles.heroIcon}>🏆</Text>
+            <Text style={styles.heroIconRow}>⛳ 🏌️ ⛳</Text>
+            <Text style={styles.heroTitle}>Join or Create a League</Text>
+            <Text style={styles.heroSubtext}>
+              Compete with friends in weekly challenges{'\n'}
+              and track your progress together
+            </Text>
+            <View style={styles.heroBenefits}>
+              <View style={styles.benefitItem}>
+                <Text style={styles.benefitIcon}>📊</Text>
+                <Text style={styles.benefitText}>Track Rankings</Text>
+              </View>
+              <View style={styles.benefitItem}>
+                <Text style={styles.benefitIcon}>🎯</Text>
+                <Text style={styles.benefitText}>Weekly Challenges</Text>
+              </View>
+              <View style={styles.benefitItem}>
+                <Text style={styles.benefitIcon}>👥</Text>
+                <Text style={styles.benefitText}>Play Together</Text>
+              </View>
+            </View>
+          </View>
 
           <TouchableOpacity
             style={styles.actionButton}
@@ -241,25 +261,77 @@ const styles = StyleSheet.create({
   },
   ownerBadge: {
     fontSize: 14,
-    color: '#007AFF',
+    color: GolfColors.primary,
     marginTop: 4,
   },
   content: {
     flex: 1,
     padding: 20,
   },
+  heroSection: {
+    backgroundColor: GolfColors.cardBg,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: GolfColors.primary,
+  },
+  heroIcon: {
+    fontSize: 72,
+    marginBottom: 8,
+  },
+  heroIconRow: {
+    fontSize: 28,
+    letterSpacing: 12,
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: GolfColors.primaryDark,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  heroSubtext: {
+    fontSize: 14,
+    color: GolfColors.gray,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  heroBenefits: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 8,
+  },
+  benefitItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  benefitIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  benefitText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: GolfColors.primaryDark,
+    textAlign: 'center',
+  },
   section: {
     marginBottom: 24,
   },
   actionButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: GolfColors.primary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 12,
   },
   actionButtonText: {
-    color: 'white',
+    color: GolfColors.white,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -269,18 +341,18 @@ const styles = StyleSheet.create({
     borderColor: '#007AFF',
   },
   secondaryButtonText: {
-    color: '#007AFF',
+    color: GolfColors.primary,
   },
   formSection: {
     marginTop: 20,
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: GolfColors.gray,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: GolfColors.gray,
     borderRadius: 8,
     padding: 12,
     marginTop: 8,
@@ -298,16 +370,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: GolfColors.cardBg,
   },
   cancelButtonText: {
-    color: '#666',
+    color: GolfColors.gray,
   },
   confirmButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: GolfColors.success,
   },
   confirmButtonText: {
-    color: 'white',
+    color: GolfColors.white,
     fontWeight: '600',
   },
   challengeText: {
@@ -324,24 +396,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   inviteButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: GolfColors.success,
     padding: 12,
     borderRadius: 6,
     alignItems: 'center',
   },
   inviteButtonText: {
-    color: 'white',
+    color: GolfColors.white,
     fontWeight: '600',
   },
   leaveButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: GolfColors.error,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 20,
   },
   leaveButtonText: {
-    color: 'white',
+    color: GolfColors.white,
     fontSize: 16,
     fontWeight: '600',
   },

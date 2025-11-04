@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, TextInput, Alert, RefreshControl, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { getUserSessions, GolfSession as ApiGolfSession } from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GolfColors } from '@/constants/theme';
 
 interface GolfSession {
   id: string;
@@ -29,7 +32,10 @@ interface UserProfile {
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [searchUsername, setSearchUsername] = useState('');
-  
+  const [golfSessions, setGolfSessions] = useState<GolfSession[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   // Sample user data - would come from auth/API
   const [userProfile, setUserProfile] = useState<UserProfile>({
     id: 'currentUser',
@@ -37,41 +43,63 @@ export default function Profile() {
     username: 'johndoe',
     email: 'john@example.com',
     handicap: 15,
-    totalRounds: 42,
-    averageScore: 85,
+    totalRounds: 0,
+    averageScore: 0,
     friends: ['alice123', 'mikeg', 'sarahc'],
   });
 
-  // Sample golf sessions - would come from API
-  const [golfSessions] = useState<GolfSession[]>([
-    {
-      id: '1',
-      courseName: 'Pebble Beach',
-      date: '2024-10-25',
-      holes: 18,
-      totalScore: 82,
-      par: 72,
-      isPrivate: false,
-    },
-    {
-      id: '2',
-      courseName: 'Augusta National',
-      date: '2024-10-20',
-      holes: 18,
-      totalScore: 78,
-      par: 72,
-      isPrivate: false,
-    },
-    {
-      id: '3',
-      courseName: 'Torrey Pines',
-      date: '2024-10-15',
-      holes: 9,
-      totalScore: 38,
-      par: 36,
-      isPrivate: true,
-    },
-  ]);
+  useEffect(() => {
+    loadUserProfile();
+    loadSessions();
+  }, []);
+
+  const loadUserProfile = async () => {
+    const name = await AsyncStorage.getItem('name');
+    if (name) {
+      setUserProfile(prev => ({ ...prev, name }));
+    }
+  };
+
+  const loadSessions = async () => {
+    setIsLoading(true);
+    const result = await getUserSessions();
+
+    if (result.data && result.data.sessions) {
+      const sessions: GolfSession[] = result.data.sessions.map((session: ApiGolfSession) => ({
+        id: session.id || '',
+        courseName: session.courseName,
+        date: session.endTime || session.timestamp || '',
+        holes: session.holes,
+        totalScore: session.totalScore,
+        par: session.holes === 18 ? 72 : 36, // Default par values
+        isPrivate: session.privacy === 'private',
+      }));
+
+      setGolfSessions(sessions);
+
+      // Calculate statistics from sessions
+      if (sessions.length > 0) {
+        const totalRounds = sessions.length;
+        const averageScore = Math.round(
+          sessions.reduce((sum, s) => sum + s.totalScore, 0) / totalRounds
+        );
+
+        setUserProfile(prev => ({
+          ...prev,
+          totalRounds,
+          averageScore,
+        }));
+      }
+    }
+
+    setIsLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadSessions();
+    setRefreshing(false);
+  };
 
   const addFriend = () => {
     if (!searchUsername.trim()) {
@@ -138,7 +166,12 @@ export default function Profile() {
         <ThemedText type="title">Profile</ThemedText>
       </ThemedView>
 
-      <ScrollView style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Profile Info */}
         <ThemedView style={styles.profileSection}>
           <View style={styles.avatarContainer}>
@@ -197,10 +230,21 @@ export default function Profile() {
         {/* Golf Sessions */}
         <ThemedView style={styles.section}>
           <ThemedText type="subtitle">Recent Rounds</ThemedText>
-          
-          <View style={styles.sessionsList}>
-            {golfSessions.map(renderSessionItem)}
-          </View>
+
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+            </View>
+          ) : golfSessions.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No rounds recorded yet</Text>
+              <Text style={styles.emptySubtext}>Start recording your golf sessions!</Text>
+            </View>
+          ) : (
+            <View style={styles.sessionsList}>
+              {golfSessions.map(renderSessionItem)}
+            </View>
+          )}
         </ThemedView>
       </ScrollView>
     </ThemedView>
@@ -231,12 +275,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#007AFF',
+    backgroundColor: GolfColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: GolfColors.fairway,
   },
   avatarText: {
-    color: 'white',
+    color: GolfColors.white,
     fontSize: 32,
     fontWeight: 'bold',
   },
@@ -244,10 +290,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
+    color: GolfColors.black,
   },
   userHandle: {
     fontSize: 16,
-    color: '#666',
+    color: GolfColors.gray,
     marginBottom: 16,
   },
   statsRow: {
@@ -261,12 +308,14 @@ const styles = StyleSheet.create({
   profileStatValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: GolfColors.primary,
   },
   profileStatLabel: {
     fontSize: 12,
-    color: '#666',
+    color: GolfColors.gray,
     marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   section: {
     marginBottom: 24,
@@ -280,20 +329,21 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: GolfColors.gray,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    backgroundColor: GolfColors.white,
   },
   addButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: GolfColors.primary,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     justifyContent: 'center',
   },
   addButtonText: {
-    color: 'white',
+    color: GolfColors.white,
     fontWeight: '600',
   },
   friendsList: {
@@ -308,28 +358,33 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#34C759',
+    backgroundColor: GolfColors.fairway,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
+    borderWidth: 2,
+    borderColor: GolfColors.primary,
   },
   friendAvatarText: {
-    color: 'white',
+    color: GolfColors.white,
     fontSize: 18,
     fontWeight: 'bold',
   },
   friendName: {
     fontSize: 12,
     textAlign: 'center',
+    color: GolfColors.black,
   },
   sessionsList: {
     marginTop: 12,
   },
   sessionItem: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: GolfColors.cardBg,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: GolfColors.cardBgAlt,
   },
   sessionHeader: {
     flexDirection: 'row',
@@ -340,10 +395,11 @@ const styles = StyleSheet.create({
   courseName: {
     fontSize: 16,
     fontWeight: '600',
+    color: GolfColors.primaryDark,
   },
   sessionDate: {
     fontSize: 14,
-    color: '#666',
+    color: GolfColors.gray,
   },
   sessionStats: {
     flexDirection: 'row',
@@ -355,25 +411,45 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: GolfColors.black,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: GolfColors.gray,
     marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   privateIndicator: {
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: '#FF9500',
+    backgroundColor: GolfColors.warning,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
   privateText: {
-    color: 'white',
+    color: GolfColors.white,
     fontSize: 10,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: GolfColors.darkGray,
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: GolfColors.gray,
   },
 });

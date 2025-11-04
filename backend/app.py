@@ -287,5 +287,107 @@ def get_friends_scores_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+# Golf Session Routes
+@app.route("/sessions", methods=["POST"])
+def create_session_route():
+    """Create a new golf session"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        session_data = request.json
+
+        # Validate required fields
+        required_fields = ["courseName", "holes", "scores", "totalScore", "duration", "startTime", "endTime"]
+        if not all(field in session_data for field in required_fields):
+            return jsonify({"error": "Missing required session data"}), 400
+
+        session_id = create_session(db, uid, session_data)
+        return jsonify({
+            "message": "Session created successfully",
+            "sessionId": session_id
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/sessions", methods=["GET"])
+def get_sessions_route():
+    """Get user's golf sessions"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        # Optional limit parameter
+        limit = request.args.get("limit", type=int)
+
+        sessions = get_user_sessions(db, uid, limit)
+        return jsonify({"sessions": sessions}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/sessions/<session_id>", methods=["DELETE"])
+def delete_session_route(session_id):
+    """Delete a golf session"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        # Verify session belongs to user
+        session = db.child("sessions").child(session_id).get().val()
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+
+        if session.get("uid") != uid:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        delete_session(db, session_id)
+        return jsonify({"message": "Session deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/feed", methods=["GET"])
+def get_feed_route():
+    """Get feed of golf sessions from friends and public"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+
+        # Optional limit parameter
+        limit = request.args.get("limit", type=int, default=20)
+
+        sessions = get_feed_sessions(db, uid, limit)
+        return jsonify({"sessions": sessions}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 if __name__ == "__main__":
     app.run(debug=True)
