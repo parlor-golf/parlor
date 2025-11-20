@@ -1,10 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { GolfColors } from '@/constants/theme';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Switch,
+  Alert,
+  Image,
+  ActivityIndicator,
+  Linking,
+  Animated,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
 import { signUp, signIn } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showImagePickerOptions } from '@/services/imagePicker';
+import { uploadProfilePhoto } from '@/services/firebase';
+import { SpringConfigs, createButtonPressAnimation } from '@/utils/animations';
 
 export default function Options() {
   const [notifications, setNotifications] = useState(true);
@@ -12,14 +27,90 @@ export default function Options() {
   const [autoScoring, setAutoScoring] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [userName, setUserName] = useState<string>('Golfer');
+
+  // Animation values
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const profileCardAnim = useRef(new Animated.Value(0)).current;
+  const profileCardScale = useRef(new Animated.Value(0.9)).current;
+  const sectionAnimations = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+  const profilePhotoScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     checkAuth();
+    loadProfileData();
+
+    // Entrance animations
+    Animated.sequence([
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        ...SpringConfigs.gentle,
+        useNativeDriver: true,
+      }),
+      Animated.parallel([
+        Animated.spring(profileCardAnim, {
+          toValue: 1,
+          ...SpringConfigs.gentle,
+          useNativeDriver: true,
+        }),
+        Animated.spring(profileCardScale, {
+          toValue: 1,
+          ...SpringConfigs.bouncy,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.stagger(100, sectionAnimations.map((anim) =>
+        Animated.spring(anim, {
+          toValue: 1,
+          ...SpringConfigs.gentle,
+          useNativeDriver: true,
+        })
+      )),
+    ]).start();
   }, []);
 
   const checkAuth = async () => {
     const token = await AsyncStorage.getItem('idToken');
     setIsAuthenticated(!!token);
+  };
+
+  const loadProfileData = async () => {
+    const photo = await AsyncStorage.getItem('profilePhoto');
+    const name = await AsyncStorage.getItem('userName');
+    if (photo) setProfilePhoto(photo);
+    if (name) setUserName(name);
+  };
+
+  const handleChangeProfilePhoto = async () => {
+    const result = await showImagePickerOptions({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result) {
+      setIsUploadingPhoto(true);
+      try {
+        const userId = await AsyncStorage.getItem('userId') || 'anonymous';
+        const photoUrl = await uploadProfilePhoto(result.uri, userId);
+        await AsyncStorage.setItem('profilePhoto', photoUrl);
+        setProfilePhoto(photoUrl);
+        Alert.alert('Success', 'Profile photo updated!');
+      } catch (error) {
+        Alert.alert('Error', 'Failed to upload photo. Please try again.');
+        console.error('Error uploading profile photo:', error);
+      }
+      setIsUploadingPhoto(false);
+    }
   };
 
   const createTestAccount = async () => {
@@ -29,14 +120,11 @@ export default function Options() {
 
     Alert.alert('Creating Test Account', 'Please wait...');
 
-    // Sign up
     const signUpResult = await signUp(testEmail, testPassword, testName);
 
     if (signUpResult.error) {
-      // If sign up fails, try signing in (account may already exist)
       const signInResult = await signIn(testEmail, testPassword);
       if (signInResult.error) {
-        // If both fail, create a new account with timestamp
         const newEmail = `testuser${Date.now()}@parlor.com`;
         const finalResult = await signUp(newEmail, testPassword, testName);
         if (finalResult.error) {
@@ -46,19 +134,29 @@ export default function Options() {
       }
     }
 
+    await AsyncStorage.setItem('userName', testName);
+    setUserName(testName);
     await checkAuth();
-    Alert.alert('Success!', 'Test account created and signed in!\n\nYou can now record and save golf sessions.');
+    Alert.alert('Success!', 'Test account created and signed in!');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => {
-          Alert.alert('Logged Out', 'You have been logged out successfully');
-        }},
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.multiRemove(['idToken', 'userId', 'userName', 'profilePhoto']);
+            setIsAuthenticated(false);
+            setProfilePhoto(null);
+            setUserName('Golfer');
+            Alert.alert('Logged Out', 'You have been logged out successfully');
+          },
+        },
       ]
     );
   };
@@ -69,260 +167,602 @@ export default function Options() {
       'This action cannot be undone. All your data will be permanently deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {
-          Alert.alert('Account Deleted', 'Your account has been deleted');
-        }},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Account Deleted', 'Your account has been deleted');
+          },
+        },
       ]
     );
   };
 
-  const SettingItem = ({ 
-    title, 
-    subtitle, 
-    value, 
-    onValueChange, 
-    type = 'switch' 
+  const handleHelpCenter = () => {
+    Alert.alert(
+      'Help Center',
+      'How can we help you?',
+      [
+        { text: 'FAQs', onPress: () => Alert.alert('FAQs', 'Frequently asked questions coming soon.') },
+        { text: 'Getting Started', onPress: () => Alert.alert('Getting Started', 'Tutorial coming soon.') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleContactSupport = () => {
+    Alert.alert(
+      'Contact Support',
+      'Choose how to reach us:',
+      [
+        {
+          text: 'Email',
+          onPress: () => Linking.openURL('mailto:support@parlorgolf.com?subject=Parlor Support Request'),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleReportBug = () => {
+    Alert.alert(
+      'Report a Bug',
+      'Please describe the issue you encountered.',
+      [
+        {
+          text: 'Send Report',
+          onPress: () => {
+            Linking.openURL('mailto:bugs@parlorgolf.com?subject=Bug Report - Parlor App');
+            Alert.alert('Thank you!', 'We appreciate your feedback.');
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const SettingItem = ({
+    icon,
+    title,
+    subtitle,
+    value,
+    onValueChange,
   }: {
+    icon: keyof typeof Ionicons.glyphMap;
     title: string;
     subtitle?: string;
-    value?: boolean;
-    onValueChange?: (value: boolean) => void;
-    type?: 'switch' | 'button';
+    value: boolean;
+    onValueChange: (value: boolean) => void;
   }) => (
     <View style={styles.settingItem}>
+      <View style={styles.settingIcon}>
+        <Ionicons name={icon} size={20} color={GolfColors.primary} />
+      </View>
       <View style={styles.settingText}>
         <Text style={styles.settingTitle}>{title}</Text>
         {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
       </View>
-      {type === 'switch' && (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: GolfColors.lightGray, true: GolfColors.primary }}
-          thumbColor={value ? GolfColors.white : '#f4f3f4'}
-        />
-      )}
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: GolfColors.lightGray, true: GolfColors.primaryLight }}
+        thumbColor={value ? GolfColors.white : '#f4f3f4'}
+        ios_backgroundColor={GolfColors.lightGray}
+      />
     </View>
   );
 
-  return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title">Settings</ThemedText>
-      </ThemedView>
+  const ButtonItem = ({
+    icon,
+    title,
+    onPress,
+    color = GolfColors.primary,
+    showArrow = true,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    title: string;
+    onPress: () => void;
+    color?: string;
+    showArrow?: boolean;
+  }) => (
+    <TouchableOpacity style={styles.buttonItem} onPress={onPress}>
+      <View style={styles.settingIcon}>
+        <Ionicons name={icon} size={20} color={color} />
+      </View>
+      <Text style={[styles.buttonText, { color }]}>{title}</Text>
+      {showArrow && (
+        <Ionicons name="chevron-forward" size={20} color={GolfColors.gray} />
+      )}
+    </TouchableOpacity>
+  );
 
-      <ScrollView style={styles.content}>
+  const handleProfilePhotoPress = () => {
+    createButtonPressAnimation(profilePhotoScale, handleChangeProfilePhoto);
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <LinearGradient
+        colors={[GolfColors.primary, GolfColors.primaryDark]}
+        style={styles.header}
+      >
+        <Animated.Text
+          style={[
+            styles.headerTitle,
+            {
+              opacity: headerAnim,
+              transform: [
+                {
+                  translateY: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          Settings
+        </Animated.Text>
+      </LinearGradient>
+
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Profile Card */}
+        <Animated.View
+          style={[
+            styles.profileCard,
+            {
+              opacity: profileCardAnim,
+              transform: [{ scale: profileCardScale }],
+            },
+          ]}
+        >
+          <Animated.View style={{ transform: [{ scale: profilePhotoScale }] }}>
+            <TouchableOpacity
+              style={styles.profilePhotoContainer}
+              onPress={handleProfilePhotoPress}
+              disabled={isUploadingPhoto}
+            >
+            {isUploadingPhoto ? (
+              <ActivityIndicator size="large" color={GolfColors.primary} />
+            ) : profilePhoto ? (
+              <Image source={{ uri: profilePhoto }} style={styles.profilePhoto} />
+            ) : (
+              <LinearGradient
+                colors={[GolfColors.primary, GolfColors.primaryLight]}
+                style={styles.profilePhotoPlaceholder}
+              >
+                <Text style={styles.profileInitial}>
+                  {userName.charAt(0).toUpperCase()}
+                </Text>
+              </LinearGradient>
+            )}
+            <View style={styles.editBadge}>
+              <Ionicons name="camera" size={14} color={GolfColors.white} />
+            </View>
+            </TouchableOpacity>
+          </Animated.View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{userName}</Text>
+            <Text style={styles.profileStatus}>
+              {isAuthenticated ? 'Signed In' : 'Not Signed In'}
+            </Text>
+          </View>
+        </Animated.View>
+
         {/* Golf Settings */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Golf Settings</ThemedText>
-          
-          <SettingItem
-            title="Auto Course Detection"
-            subtitle="Automatically detect golf course based on your location"
-            value={locationServices}
-            onValueChange={setLocationServices}
-          />
-          
-          <SettingItem
-            title="Smart Scoring"
-            subtitle="Get scoring suggestions based on your play"
-            value={autoScoring}
-            onValueChange={setAutoScoring}
-          />
-        </ThemedView>
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[0],
+              transform: [
+                {
+                  translateY: sectionAnimations[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>Golf Settings</Text>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon="location"
+              title="Auto Course Detection"
+              subtitle="Detect course based on location"
+              value={locationServices}
+              onValueChange={setLocationServices}
+            />
+            <View style={styles.divider} />
+            <SettingItem
+              icon="flash"
+              title="Smart Scoring"
+              subtitle="Get scoring suggestions"
+              value={autoScoring}
+              onValueChange={setAutoScoring}
+            />
+          </View>
+        </Animated.View>
 
         {/* Notifications */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Notifications</ThemedText>
-          
-          <SettingItem
-            title="Push Notifications"
-            subtitle="Receive updates about friends' rounds and league challenges"
-            value={notifications}
-            onValueChange={setNotifications}
-          />
-        </ThemedView>
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[1],
+              transform: [
+                {
+                  translateY: sectionAnimations[1].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon="notifications"
+              title="Push Notifications"
+              subtitle="Friends' rounds and challenges"
+              value={notifications}
+              onValueChange={setNotifications}
+            />
+          </View>
+        </Animated.View>
 
         {/* Appearance */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Appearance</ThemedText>
-          
-          <SettingItem
-            title="Dark Mode"
-            subtitle="Use dark theme throughout the app"
-            value={darkMode}
-            onValueChange={setDarkMode}
-          />
-        </ThemedView>
-
-        {/* Privacy & Data */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Privacy & Data</ThemedText>
-          
-          <TouchableOpacity style={styles.buttonItem}>
-            <Text style={styles.buttonText}>Privacy Policy</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.buttonItem}>
-            <Text style={styles.buttonText}>Terms of Service</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.buttonItem}>
-            <Text style={styles.buttonText}>Export My Data</Text>
-          </TouchableOpacity>
-        </ThemedView>
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[2],
+              transform: [
+                {
+                  translateY: sectionAnimations[2].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>Appearance</Text>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon="moon"
+              title="Dark Mode"
+              subtitle="Use dark theme"
+              value={darkMode}
+              onValueChange={setDarkMode}
+            />
+          </View>
+        </Animated.View>
 
         {/* Support */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Support</ThemedText>
-          
-          <TouchableOpacity style={styles.buttonItem}>
-            <Text style={styles.buttonText}>Help Center</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.buttonItem}>
-            <Text style={styles.buttonText}>Contact Support</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.buttonItem}>
-            <Text style={styles.buttonText}>Report a Bug</Text>
-          </TouchableOpacity>
-        </ThemedView>
-
-        {/* Account Actions */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Account</ThemedText>
-
-          {!isAuthenticated && (
-            <TouchableOpacity style={[styles.buttonItem, styles.testAccountButton]} onPress={createTestAccount}>
-              <Text style={[styles.buttonText, styles.testAccountText]}>Create Test Account</Text>
-            </TouchableOpacity>
-          )}
-
-          {isAuthenticated && (
-            <View style={styles.authStatus}>
-              <Text style={styles.authStatusText}>✓ Signed In</Text>
-            </View>
-          )}
-
-          <TouchableOpacity style={styles.buttonItem} onPress={handleLogout}>
-            <Text style={[styles.buttonText, styles.logoutText]}>Logout</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.buttonItem} onPress={handleDeleteAccount}>
-            <Text style={[styles.buttonText, styles.deleteText]}>Delete Account</Text>
-          </TouchableOpacity>
-        </ThemedView>
-
-        {/* App Info */}
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>About</ThemedText>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoText}>Version 1.0.0</Text>
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[3],
+              transform: [
+                {
+                  translateY: sectionAnimations[3].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>Support</Text>
+          <View style={styles.sectionCard}>
+            <ButtonItem
+              icon="help-circle"
+              title="Help Center"
+              onPress={handleHelpCenter}
+            />
+            <View style={styles.divider} />
+            <ButtonItem
+              icon="chatbubble"
+              title="Contact Support"
+              onPress={handleContactSupport}
+            />
+            <View style={styles.divider} />
+            <ButtonItem
+              icon="bug"
+              title="Report a Bug"
+              onPress={handleReportBug}
+            />
           </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoText}>© 2024 Parlor Golf</Text>
+        </Animated.View>
+
+        {/* Account */}
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[4],
+              transform: [
+                {
+                  translateY: sectionAnimations[4].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.sectionCard}>
+            {!isAuthenticated && (
+              <>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={createTestAccount}
+                >
+                  <LinearGradient
+                    colors={[GolfColors.primary, GolfColors.primaryLight]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.primaryButtonGradient}
+                  >
+                    <Ionicons name="person-add" size={20} color={GolfColors.white} />
+                    <Text style={styles.primaryButtonText}>Create Test Account</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+              </>
+            )}
+            <ButtonItem
+              icon="log-out"
+              title="Logout"
+              onPress={handleLogout}
+              color={GolfColors.warning}
+              showArrow={false}
+            />
+            <View style={styles.divider} />
+            <ButtonItem
+              icon="trash"
+              title="Delete Account"
+              onPress={handleDeleteAccount}
+              color={GolfColors.error}
+              showArrow={false}
+            />
           </View>
-        </ThemedView>
+        </Animated.View>
+
+        {/* About */}
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[5],
+              transform: [
+                {
+                  translateY: sectionAnimations[5].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>About</Text>
+          <View style={styles.aboutCard}>
+            <LinearGradient
+              colors={[GolfColors.cardBg, GolfColors.cardBgAlt]}
+              style={styles.aboutGradient}
+            >
+              <Ionicons name="golf" size={32} color={GolfColors.primary} />
+              <Text style={styles.appName}>Parlor</Text>
+              <Text style={styles.appVersion}>Version 1.0.0</Text>
+              <Text style={styles.appCopyright}>© 2024 Parlor Golf</Text>
+            </LinearGradient>
+          </View>
+        </Animated.View>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: GolfColors.lightGray,
   },
   header: {
-    padding: 20,
     paddingTop: 60,
+    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
     alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: GolfColors.white,
   },
   content: {
     flex: 1,
-    padding: 20,
   },
-  section: {
-    marginBottom: 24,
+  scrollContent: {
+    padding: Spacing.md,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: GolfColors.primaryDark,
-  },
-  settingItem: {
+  profileCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: GolfColors.cardBg,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: GolfColors.cardBgAlt,
+    backgroundColor: GolfColors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.medium,
   },
-  settingText: {
+  profilePhotoContainer: {
+    position: 'relative',
+  },
+  profilePhoto: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
+  profilePhotoPlaceholder: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileInitial: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: GolfColors.white,
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: GolfColors.primaryDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: GolfColors.white,
+  },
+  profileInfo: {
+    marginLeft: Spacing.md,
     flex: 1,
-    marginRight: 12,
   },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  profileName: {
+    fontSize: 20,
+    fontWeight: '700',
     color: GolfColors.black,
   },
-  settingSubtitle: {
+  profileStatus: {
     fontSize: 14,
     color: GolfColors.gray,
     marginTop: 2,
   },
-  buttonItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+  section: {
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: GolfColors.gray,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sectionCard: {
+    backgroundColor: GolfColors.white,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.small,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+  },
+  settingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: GolfColors.cardBg,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: GolfColors.cardBgAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  settingText: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: GolfColors.black,
+  },
+  settingSubtitle: {
+    fontSize: 12,
+    color: GolfColors.gray,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: GolfColors.lightGray,
+    marginLeft: 60,
+  },
+  buttonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
   },
   buttonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  primaryButton: {
+    margin: Spacing.md,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  primaryButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  primaryButtonText: {
+    color: GolfColors.white,
     fontSize: 16,
-    color: GolfColors.primary,
+    fontWeight: '600',
   },
-  logoutText: {
-    color: GolfColors.warning,
+  aboutCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
   },
-  deleteText: {
-    color: GolfColors.error,
+  aboutGradient: {
+    padding: Spacing.xl,
+    alignItems: 'center',
   },
-  infoItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  appName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: GolfColors.primaryDark,
+    marginTop: Spacing.sm,
   },
-  infoText: {
+  appVersion: {
     fontSize: 14,
     color: GolfColors.gray,
+    marginTop: Spacing.xs,
   },
-  testAccountButton: {
-    backgroundColor: GolfColors.primary,
+  appCopyright: {
+    fontSize: 12,
+    color: GolfColors.gray,
+    marginTop: Spacing.sm,
   },
-  testAccountText: {
-    color: GolfColors.white,
-    fontWeight: 'bold',
-  },
-  authStatus: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: GolfColors.cardBgAlt,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: GolfColors.success,
-  },
-  authStatusText: {
-    fontSize: 16,
-    color: GolfColors.success,
-    fontWeight: '600',
+  bottomSpacer: {
+    height: 100,
   },
 });

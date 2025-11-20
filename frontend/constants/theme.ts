@@ -62,6 +62,79 @@ export const GolfColors = {
   overPar: '#FF7043', // Bad score (orange)
 };
 
+// Gradient definitions for use with LinearGradient
+export const Gradients = {
+  // Primary gradients
+  primary: ['#2D7D3E', '#4CAF50'],
+  primaryDark: ['#1B5E2A', '#2D7D3E'],
+  primaryLight: ['#4CAF50', '#81C784'],
+
+  // Golf-themed gradients
+  fairway: ['#3D9654', '#5B8F6A'],
+  sunrise: ['#FF9800', '#4CAF50'],
+  sunset: ['#E74C3C', '#FF9800', '#2D7D3E'],
+
+  // Card/Surface gradients
+  card: ['#F8FCF9', '#EBF5ED'],
+  cardDark: ['#1A2E1A', '#243D24'],
+
+  // Overlay gradients
+  overlayLight: ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.7)'],
+  overlayDark: ['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.3)'],
+  overlayGreen: ['rgba(45,125,62,0.8)', 'rgba(45,125,62,0.4)'],
+};
+
+// Shadow definitions
+export const Shadows = {
+  small: {
+    shadowColor: '#1B3A1F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  medium: {
+    shadowColor: '#1B3A1F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  large: {
+    shadowColor: '#1B3A1F',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  glow: {
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+};
+
+// Spacing scale
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+};
+
+// Border radius
+export const BorderRadius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 9999,
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { GolfColors } from '@/constants/theme';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  ImageBackground,
+  Alert,
+  Animated,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
+import { SpringConfigs, createButtonPressAnimation } from '@/utils/animations';
 
 interface PlayerRanking {
   id: string;
@@ -22,196 +32,428 @@ export default function Ranking() {
   const [holeFilter, setHoleFilter] = useState<HoleType>('18-hole');
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
 
+  // Animation values
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const filterCardAnim = useRef(new Animated.Value(0)).current;
+  const filterCardScale = useRef(new Animated.Value(0.9)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+  const searchButtonScale = useRef(new Animated.Value(1)).current;
+  const trophyRotate = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Entrance animations
+    Animated.sequence([
+      // Header slides down
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        ...SpringConfigs.gentle,
+        useNativeDriver: true,
+      }),
+      // Filter card scales in
+      Animated.parallel([
+        Animated.spring(filterCardAnim, {
+          toValue: 1,
+          ...SpringConfigs.gentle,
+          useNativeDriver: true,
+        }),
+        Animated.spring(filterCardScale, {
+          toValue: 1,
+          ...SpringConfigs.bouncy,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Content fades in
+      Animated.timing(contentAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Trophy wiggle animation
+    const wiggle = Animated.loop(
+      Animated.sequence([
+        Animated.timing(trophyRotate, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(trophyRotate, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    wiggle.start();
+
+    return () => wiggle.stop();
+  }, []);
+
   // Rankings will come from API - empty for now
   const sampleRankings: PlayerRanking[] = [];
+
+  const handleSearch = () => {
+    createButtonPressAnimation(searchButtonScale, () => {
+      Alert.alert('Search', 'Search for players on the leaderboard. (Feature coming soon)');
+    });
+  };
+
+  const getRankBadgeStyle = (rank: number) => {
+    if (rank === 1) return { backgroundColor: '#FFD700' }; // Gold
+    if (rank === 2) return { backgroundColor: '#C0C0C0' }; // Silver
+    if (rank === 3) return { backgroundColor: '#CD7F32' }; // Bronze
+    return { backgroundColor: GolfColors.primary };
+  };
 
   const renderRankingItem = (player: PlayerRanking, rank: number) => (
     <View key={player.id} style={styles.rankingItem}>
       <View style={styles.rankInfo}>
-        <View style={styles.rankBadge}>
-          <Text style={styles.rankNumber}>{rank}</Text>
-        </View>
+        <LinearGradient
+          colors={rank <= 3 ? ['#FFD700', '#FFA500'] : [GolfColors.primary, GolfColors.primaryLight]}
+          style={[styles.rankBadge, getRankBadgeStyle(rank)]}
+        >
+          {rank <= 3 ? (
+            <Ionicons
+              name="trophy"
+              size={16}
+              color={rank === 1 ? '#8B6914' : rank === 2 ? '#5A5A5A' : '#5D3A1A'}
+            />
+          ) : (
+            <Text style={styles.rankNumber}>{rank}</Text>
+          )}
+        </LinearGradient>
         <View style={styles.playerInfo}>
           <Text style={[styles.playerName, player.name === 'You' && styles.currentPlayer]}>
             {player.name}
           </Text>
           <Text style={styles.playerStats}>
-            {player.rounds} rounds • Handicap {player.handicap}
+            {player.rounds} rounds • HCP {player.handicap}
           </Text>
         </View>
       </View>
       <View style={styles.scoreInfo}>
         <Text style={styles.netScore}>{player.netScore}</Text>
-        <Text style={styles.scoreLabel}>Net Score</Text>
+        <Text style={styles.scoreLabel}>Net</Text>
       </View>
     </View>
   );
 
+  const trophyRotation = trophyRotate.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['-5deg', '5deg', '-5deg'],
+  });
+
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title">Leaderboard</ThemedText>
-      </ThemedView>
+    <View style={styles.container}>
+      {/* Header */}
+      <LinearGradient
+        colors={[GolfColors.primary, GolfColors.primaryDark]}
+        style={styles.header}
+      >
+        <Animated.View
+          style={[
+            styles.headerContent,
+            {
+              opacity: headerAnim,
+              transform: [
+                {
+                  translateY: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.headerTitle}>Leaderboard</Text>
+          <Animated.View style={{ transform: [{ scale: searchButtonScale }] }}>
+            <TouchableOpacity style={styles.headerButton} onPress={handleSearch}>
+              <Ionicons name="search" size={24} color={GolfColors.white} />
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </LinearGradient>
 
-      <ScrollView style={styles.content}>
-        {/* Filter Type */}
-        <ThemedView style={styles.filterSection}>
-          <ThemedText style={styles.filterLabel}>Category</ThemedText>
-          <View style={styles.filterRow}>
-            {(['friends', 'league', 'global'] as FilterType[]).map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[styles.filterButton, filterType === type && styles.activeFilter]}
-                onPress={() => setFilterType(type)}
-              >
-                <Text style={[styles.filterText, filterType === type && styles.activeFilterText]}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ThemedView>
-
-        {/* Hole Filter */}
-        <ThemedView style={styles.filterSection}>
-          <ThemedText style={styles.filterLabel}>Round Type</ThemedText>
-          <View style={styles.filterRow}>
-            {(['9-hole', '18-hole'] as HoleType[]).map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[styles.filterButton, holeFilter === type && styles.activeFilter]}
-                onPress={() => setHoleFilter(type)}
-              >
-                <Text style={[styles.filterText, holeFilter === type && styles.activeFilterText]}>
-                  {type}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ThemedView>
-
-        {/* Time Range */}
-        <ThemedView style={styles.filterSection}>
-          <ThemedText style={styles.filterLabel}>Time Period</ThemedText>
-          <View style={styles.filterRow}>
-            {(['weekly', 'monthly', 'yearly'] as TimeRange[]).map((range) => (
-              <TouchableOpacity
-                key={range}
-                style={[styles.filterButton, timeRange === range && styles.activeFilter]}
-                onPress={() => setTimeRange(range)}
-              >
-                <Text style={[styles.filterText, timeRange === range && styles.activeFilterText]}>
-                  {range.charAt(0).toUpperCase() + range.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ThemedView>
-
-        {/* Rankings */}
-        <ThemedView style={styles.rankingsSection}>
-          <ThemedText type="subtitle">
-            {filterType.charAt(0).toUpperCase() + filterType.slice(1)} Rankings - {holeFilter} ({timeRange})
-          </ThemedText>
-
-          <View style={styles.rankingsList}>
-            {sampleRankings.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>🏆</Text>
-                <Text style={styles.emptyIconRow}>⛳ 🏌️ ⛳</Text>
-                <Text style={styles.emptyText}>No Rankings Yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Record your rounds and compete{'\n'}
-                  with friends to see who's on top!
-                </Text>
-                <View style={styles.emptyHint}>
-                  <Text style={styles.emptyHintEmoji}>💡</Text>
-                  <Text style={styles.emptyHintText}>
-                    Tip: Play 3+ rounds to get your ranking
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Filter Cards */}
+        <Animated.View
+          style={[
+            styles.filterCard,
+            {
+              opacity: filterCardAnim,
+              transform: [{ scale: filterCardScale }],
+            },
+          ]}
+        >
+          {/* Category Filter */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Category</Text>
+            <View style={styles.filterRow}>
+              {(['friends', 'league', 'global'] as FilterType[]).map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.filterButton, filterType === type && styles.activeFilter]}
+                  onPress={() => setFilterType(type)}
+                >
+                  <Ionicons
+                    name={type === 'friends' ? 'people' : type === 'league' ? 'trophy' : 'globe'}
+                    size={16}
+                    color={filterType === type ? GolfColors.white : GolfColors.primary}
+                  />
+                  <Text style={[styles.filterText, filterType === type && styles.activeFilterText]}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
                   </Text>
-                </View>
-              </View>
-            ) : (
-              sampleRankings.map((player, index) => renderRankingItem(player, index + 1))
-            )}
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </ThemedView>
 
-        {/* Info Section */}
-        <ThemedView style={styles.infoSection}>
-          <ThemedText style={styles.infoText}>
-            Rankings are calculated using World Handicap System net scores.
-            Play more rounds to improve your position!
-          </ThemedText>
-        </ThemedView>
+          {/* Hole & Time Filters */}
+          <View style={styles.filterRow}>
+            <View style={styles.filterHalf}>
+              <Text style={styles.filterLabel}>Holes</Text>
+              <View style={styles.smallFilterRow}>
+                {(['9-hole', '18-hole'] as HoleType[]).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.smallFilterButton, holeFilter === type && styles.activeSmallFilter]}
+                    onPress={() => setHoleFilter(type)}
+                  >
+                    <Text style={[styles.smallFilterText, holeFilter === type && styles.activeSmallFilterText]}>
+                      {type.split('-')[0]}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterHalf}>
+              <Text style={styles.filterLabel}>Period</Text>
+              <View style={styles.smallFilterRow}>
+                {(['weekly', 'monthly', 'yearly'] as TimeRange[]).map((range) => (
+                  <TouchableOpacity
+                    key={range}
+                    style={[styles.smallFilterButton, timeRange === range && styles.activeSmallFilter]}
+                    onPress={() => setTimeRange(range)}
+                  >
+                    <Text style={[styles.smallFilterText, timeRange === range && styles.activeSmallFilterText]}>
+                      {range.charAt(0).toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Rankings Section */}
+        <Animated.View
+          style={[
+            styles.rankingsSection,
+            { opacity: contentAnim },
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <Animated.View style={{ transform: [{ rotate: trophyRotation }] }}>
+              <Ionicons name="trophy" size={20} color={GolfColors.primary} />
+            </Animated.View>
+            <Text style={styles.sectionTitle}>
+              {filterType.charAt(0).toUpperCase() + filterType.slice(1)} Rankings
+            </Text>
+          </View>
+
+          {sampleRankings.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <ImageBackground
+                source={require('@/assets/images/golf/golf-sunset.jpg')}
+                style={styles.emptyBackground}
+                imageStyle={styles.emptyBackgroundImage}
+              >
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
+                  style={styles.emptyOverlay}
+                >
+                  <View style={styles.emptyIconContainer}>
+                    <Ionicons name="trophy" size={48} color={GolfColors.sand} />
+                  </View>
+                  <Text style={styles.emptyTitle}>No Rankings Yet</Text>
+                  <Text style={styles.emptySubtext}>
+                    Record your rounds and compete with friends to climb the leaderboard
+                  </Text>
+
+                  <View style={styles.tipCard}>
+                    <Ionicons name="bulb" size={20} color={GolfColors.sand} />
+                    <Text style={styles.tipText}>
+                      Play 3+ rounds to get your ranking
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
+            </View>
+          ) : (
+            <View style={styles.rankingsList}>
+              {sampleRankings.map((player, index) => renderRankingItem(player, index + 1))}
+            </View>
+          )}
+        </Animated.View>
+
+        {/* Info Card */}
+        <View style={styles.infoCard}>
+          <LinearGradient
+            colors={[GolfColors.cardBg, GolfColors.cardBgAlt]}
+            style={styles.infoGradient}
+          >
+            <Ionicons name="information-circle" size={20} color={GolfColors.primary} />
+            <Text style={styles.infoText}>
+              Rankings use World Handicap System net scores. Play more rounds to improve!
+            </Text>
+          </LinearGradient>
+        </View>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: GolfColors.lightGray,
   },
   header: {
-    padding: 20,
     paddingTop: 60,
+    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: GolfColors.white,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     flex: 1,
-    padding: 20,
+  },
+  scrollContent: {
+    padding: Spacing.md,
+  },
+  filterCard: {
+    backgroundColor: GolfColors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.small,
   },
   filterSection: {
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   filterLabel: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 8,
+    color: GolfColors.gray,
+    marginBottom: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   filterButton: {
     flex: 1,
-    padding: 10,
-    borderWidth: 2,
-    borderColor: GolfColors.gray,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: GolfColors.white,
+    justifyContent: 'center',
+    padding: Spacing.sm,
+    borderWidth: 2,
+    borderColor: GolfColors.primary,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
   },
   activeFilter: {
     backgroundColor: GolfColors.primary,
     borderColor: GolfColors.primary,
   },
   filterText: {
-    fontSize: 14,
-    color: GolfColors.darkGray,
+    fontSize: 12,
+    fontWeight: '600',
+    color: GolfColors.primary,
   },
   activeFilterText: {
     color: GolfColors.white,
+  },
+  filterHalf: {
+    flex: 1,
+  },
+  smallFilterRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  smallFilterButton: {
+    flex: 1,
+    padding: Spacing.xs,
+    borderWidth: 1,
+    borderColor: GolfColors.cardBgAlt,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    backgroundColor: GolfColors.cardBg,
+  },
+  activeSmallFilter: {
+    backgroundColor: GolfColors.primaryLight,
+    borderColor: GolfColors.primaryLight,
+  },
+  smallFilterText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: GolfColors.gray,
+  },
+  activeSmallFilterText: {
+    color: GolfColors.white,
   },
   rankingsSection: {
-    marginTop: 8,
-    marginBottom: 20,
+    marginBottom: Spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: GolfColors.primaryDark,
   },
   rankingsList: {
-    marginTop: 12,
+    gap: Spacing.sm,
   },
   rankingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    backgroundColor: GolfColors.cardBg,
-    borderWidth: 1,
-    borderColor: GolfColors.cardBgAlt,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: GolfColors.white,
+    ...Shadows.small,
   },
   rankInfo: {
     flexDirection: 'row',
@@ -219,111 +461,121 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rankBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: GolfColors.primary,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: GolfColors.fairway,
+    marginRight: Spacing.sm,
   },
   rankNumber: {
     color: GolfColors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
   },
   playerInfo: {
     flex: 1,
   },
   playerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 2,
     color: GolfColors.black,
+    marginBottom: 2,
   },
   currentPlayer: {
     color: GolfColors.primary,
   },
   playerStats: {
-    fontSize: 12,
+    fontSize: 11,
     color: GolfColors.gray,
   },
   scoreInfo: {
     alignItems: 'center',
+    backgroundColor: GolfColors.cardBg,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
   },
   netScore: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: GolfColors.success,
+    fontSize: 18,
+    fontWeight: '700',
+    color: GolfColors.underPar,
   },
   scoreLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: GolfColors.gray,
-    marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  infoSection: {
-    padding: 16,
-    backgroundColor: GolfColors.cardBgAlt,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: GolfColors.lightGray,
+  emptyContainer: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.medium,
   },
-  infoText: {
-    fontSize: 14,
-    color: GolfColors.darkGray,
-    textAlign: 'center',
-    lineHeight: 20,
+  emptyBackground: {
+    width: '100%',
   },
-  emptyState: {
-    padding: 40,
+  emptyBackgroundImage: {
+    borderRadius: BorderRadius.lg,
+  },
+  emptyOverlay: {
+    padding: Spacing.xl,
     alignItems: 'center',
-    backgroundColor: GolfColors.cardBg,
-    borderRadius: 12,
-    marginTop: 20,
+    borderRadius: BorderRadius.lg,
   },
-  emptyIcon: {
-    fontSize: 72,
-    marginBottom: 8,
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(212,165,116,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
   },
-  emptyIconRow: {
-    fontSize: 32,
-    marginBottom: 16,
-    letterSpacing: 8,
-  },
-  emptyText: {
-    fontSize: 18,
+  emptyTitle: {
+    fontSize: 22,
     fontWeight: '700',
     color: GolfColors.primaryDark,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   emptySubtext: {
     fontSize: 14,
     color: GolfColors.gray,
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
-  emptyHint: {
+  tipCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: GolfColors.sand,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 8,
+    backgroundColor: 'rgba(212,165,116,0.2)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
   },
-  emptyHintEmoji: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  emptyHintText: {
+  tipText: {
     fontSize: 13,
-    color: GolfColors.primaryDark,
     fontWeight: '500',
+    color: GolfColors.primaryDark,
+  },
+  infoCard: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  infoGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 12,
+    color: GolfColors.darkGray,
+    lineHeight: 18,
+  },
+  bottomSpacer: {
+    height: 100,
   },
 });
