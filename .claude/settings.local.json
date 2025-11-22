@@ -6,7 +6,14 @@
       "Bash(cd:*)",
       "Bash(npx expo install expo-image-picker expo-camera expo-file-system expo-media-library)",
       "Bash(curl:*)",
-      "Bash(npx expo install:*)"
+      "Bash(npx expo install:*)",
+      "Bash(lsof:*)",
+      "Bash(pkill:*)",
+      "Bash(python3:*)",
+      "Bash(cat:*)",
+      "Bash(xargs kill:*)",
+      "Bash(timeout 10 python3:*)",
+      "Bash(gunicorn:*)"
     ],
     "deny": [],
     "ask": []

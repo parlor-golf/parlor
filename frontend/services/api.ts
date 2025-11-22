@@ -2,9 +2,10 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Update this with your backend URL
-// For local development: http://localhost:5000
+// For local development on device: http://YOUR_LOCAL_IP:5001
+// For iOS Simulator: http://localhost:5001
 // For production: your deployed backend URL
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://10.56.96.54:5001';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -54,16 +55,35 @@ export interface ApiResponse<T> {
 // Auth functions
 export const signUp = async (email: string, password: string, name: string) => {
   try {
+    console.log('[API] Signing up:', { email, name, baseURL: API_BASE_URL });
     const response = await api.post('/sign_up', { email, password, name });
+    console.log('[API] Sign up response:', response.data);
     return { data: response.data };
   } catch (error: any) {
-    return { error: error.response?.data?.error || 'Sign up failed' };
+    console.error('[API] Sign up error:', error.response?.data || error.message);
+    let errorMessage = error.response?.data?.error || 'Sign up failed';
+
+    // Parse Firebase errors for better user messages
+    if (errorMessage.includes('EMAIL_EXISTS')) {
+      errorMessage = 'This email is already registered. Please sign in instead.';
+    } else if (errorMessage.includes('WEAK_PASSWORD')) {
+      errorMessage = 'Password should be at least 6 characters.';
+    } else if (errorMessage.includes('INVALID_EMAIL')) {
+      errorMessage = 'Please enter a valid email address.';
+    } else if (errorMessage.toLowerCase().includes('password')) {
+      // Catch-all for other password strength messages
+      errorMessage = 'Please choose a stronger password (min 6 characters).';
+    }
+
+    return { error: errorMessage };
   }
 };
 
 export const signIn = async (email: string, password: string) => {
   try {
+    console.log('[API] Signing in:', { email, baseURL: API_BASE_URL });
     const response = await api.post('/sign_in', { email, password });
+    console.log('[API] Sign in response:', response.data);
     if (response.data.idToken) {
       await AsyncStorage.setItem('idToken', response.data.idToken);
       await AsyncStorage.setItem('uid', response.data.uid);
@@ -71,7 +91,23 @@ export const signIn = async (email: string, password: string) => {
     }
     return { data: response.data };
   } catch (error: any) {
-    return { error: error.response?.data?.error || 'Sign in failed' };
+    console.error('[API] Sign in error:', error.response?.data || error.message);
+    let errorMessage = error.response?.data?.error || 'Sign in failed';
+
+    // Parse Firebase errors for better user messages
+    if (errorMessage.includes('INVALID_LOGIN_CREDENTIALS') ||
+        errorMessage.includes('INVALID_PASSWORD') ||
+        errorMessage.includes('EMAIL_NOT_FOUND')) {
+      errorMessage = 'Invalid email or password. Please try again.';
+    } else if (errorMessage.includes('INVALID_EMAIL')) {
+      errorMessage = 'Please enter a valid email address.';
+    } else if (errorMessage.includes('USER_DISABLED')) {
+      errorMessage = 'This account has been disabled.';
+    } else if (errorMessage.includes('TOO_MANY_ATTEMPTS')) {
+      errorMessage = 'Too many failed attempts. Please try again later.';
+    }
+
+    return { error: errorMessage };
   }
 };
 
@@ -112,10 +148,22 @@ export const deleteSession = async (sessionId: string): Promise<ApiResponse<{ me
 
 export const getFeedSessions = async (limit: number = 20): Promise<ApiResponse<{ sessions: GolfSession[] }>> => {
   try {
+    console.log('[API] Fetching feed sessions with limit:', limit);
     const response = await api.get('/feed', { params: { limit } });
+    console.log('[API] Feed response:', response.data);
     return { data: response.data };
   } catch (error: any) {
-    return { error: error.response?.data?.error || 'Failed to fetch feed' };
+    console.error('[API] Feed error:', error.response?.data || error.message);
+    let errorMessage = error.response?.data?.error || 'Failed to fetch feed';
+
+    // Parse common errors
+    if (error.response?.status === 401) {
+      errorMessage = 'Please sign in to view the feed';
+    } else if (errorMessage.includes('Missing or invalid token')) {
+      errorMessage = 'Authentication expired. Please sign in again.';
+    }
+
+    return { error: errorMessage };
   }
 };
 

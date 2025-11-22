@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showImagePickerOptions } from '@/services/imagePicker';
 import { uploadProfilePhoto } from '@/services/firebase';
 import { SpringConfigs, createButtonPressAnimation } from '@/utils/animations';
+import { router } from 'expo-router';
 
 export default function Options() {
   const [notifications, setNotifications] = useState(true);
@@ -151,10 +152,7 @@ export default function Options() {
           style: 'destructive',
           onPress: async () => {
             await AsyncStorage.multiRemove(['idToken', 'userId', 'userName', 'profilePhoto']);
-            setIsAuthenticated(false);
-            setProfilePhoto(null);
-            setUserName('Golfer');
-            Alert.alert('Logged Out', 'You have been logged out successfully');
+            router.replace('/auth/sign-in');
           },
         },
       ]
@@ -170,8 +168,9 @@ export default function Options() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Account Deleted', 'Your account has been deleted');
+          onPress: async () => {
+            await AsyncStorage.multiRemove(['idToken', 'userId', 'userName', 'profilePhoto']);
+            router.replace('/auth/sign-in');
           },
         },
       ]
