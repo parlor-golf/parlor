@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For local development on device: http://YOUR_LOCAL_IP:5001
 // For iOS Simulator: http://localhost:5001
 // For production: your deployed backend URL
-const API_BASE_URL = 'http://10.56.96.54:5001';
+const API_BASE_URL = 'http://127.0.0.1:5001';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -228,6 +228,15 @@ export const getFriendsScores = async (): Promise<ApiResponse<any[]>> => {
     return { data: response.data };
   } catch (error: any) {
     return { error: error.response?.data?.error || 'Failed to fetch friends scores' };
+  }
+};
+
+export const getRankings = async (): Promise<ApiResponse<any[]>> => {
+  try {
+    const response = await api.get('/leaderboard');
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to fetch rankings' };
   }
 };
 
