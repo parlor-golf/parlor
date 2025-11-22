@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from functions import *
 from typing import Dict, Any, Tuple
+from openai import OpenAI
 import os
 import pyrebase
 from dotenv import load_dotenv
@@ -23,6 +24,12 @@ firebase = pyrebase.initialize_app(config)
 
 db = firebase.database()
 auth = firebase.auth()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+client = OpenAI(
+    api_key = OPENAI_API_KEY
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -284,6 +291,21 @@ def get_friends_scores_route():
 
         data = get_friends_scores(db, uid)
         return jsonify(data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/challenge/<int:difficulty>", methods=["GET"])
+def get_challenges_route(difficulty):
+    if difficulty < 1 or difficulty > 5:
+        return jsonify({"error": "Difficulty must be between 1 and 5"}), 400
+    
+    try:
+        resp = client.responses.create(
+            model="gpt-4o",
+            instructions="You are a golf expert who loves to output golf challenges based on the level of difficulty specified by the input. this should be able to be completed in one to two days. well formatted with time estimated to complete, tips, and basic challenge. based on a. skill level from 1-5 where 1 is beginner and 5 is expert",
+            input=str(difficulty)
+        )
+        return jsonify({"difficulty": difficulty, "challenge": resp.output_text}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
