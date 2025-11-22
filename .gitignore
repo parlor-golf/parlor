@@ -10,6 +10,7 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+.claude/
 
 # ---------------------------------
 # --- Frontend (React / Node.js) ---
