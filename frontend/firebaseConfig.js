@@ -8,7 +8,8 @@ const firebaseConfig = {
   storageBucket: "parlor-1752e.firebasestorage.app",
   messagingSenderId: "951195595957",
   appId: "1:951195595957:web:bf22610ed7f0991d0f3afc",
-  measurementId: "G-M8QF1GWMED"
+  measurementId: "G-M8QF1GWMED",
+  databaseURL: "https://parlor-1752e-default-rtdb.firebaseio.com",
 };
 
 // Initialize Firebase

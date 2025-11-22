@@ -89,10 +89,17 @@ export default function Feed() {
 
   const loadFeed = async () => {
     setIsLoading(true);
+    console.log('[Feed] Loading feed...');
     const result = await getFeedSessions(20);
 
     if (result.data && result.data.sessions) {
+      console.log('[Feed] Loaded sessions:', result.data.sessions.length);
       setSessions(result.data.sessions);
+    } else if (result.error) {
+      console.error('[Feed] Error loading feed:', result.error);
+      Alert.alert('Error', `Failed to load feed: ${result.error}`);
+    } else {
+      console.log('[Feed] No sessions found');
     }
 
     setIsLoading(false);

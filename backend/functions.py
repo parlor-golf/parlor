@@ -44,17 +44,17 @@ def get_courses(db: Database):
     return list(courses)
 
 def get_leaderboard(db: Database, course=None):
-    scores = db.child("scores").get()
+    sessions = db.child("sessions").get()
     player_scores = {}
 
-    if scores.each():
-        for s in scores.each():
+    if sessions.each():
+        for s in sessions.each():
             data = s.val()
             if course and data.get("course") != course:
                 continue
 
-            name = data.get("name")
-            score = data.get("score")
+            name = data.get("username")
+            score = data.get("totalScore")
             if not name or score is None:
                 continue
 

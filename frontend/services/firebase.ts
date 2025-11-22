@@ -10,7 +10,7 @@ import { getAuth } from 'firebase/auth';
 const firebaseConfig = {
   apiKey: "AIzaSyDZAt3J7EBhObYOuxgT8rR0VI_z88dGrGM",
   authDomain: "parlor-1752e.firebaseapp.com",
-  databaseURL: "https://parlor-1752e-default-rtdb.firebaseio.com/",
+  databaseURL: "https://parlor-1752e-default-rtdb.firebaseio.com",
   projectId: "parlor-1752e",
   storageBucket: "parlor-1752e.firebasestorage.app",
   messagingSenderId: "951195595957",

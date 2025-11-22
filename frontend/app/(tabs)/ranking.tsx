@@ -8,11 +8,13 @@ import {
   ImageBackground,
   Alert,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
 import { SpringConfigs, createButtonPressAnimation } from '@/utils/animations';
+import { getRankings } from '@/services/api';
 
 interface PlayerRanking {
   id: string;
@@ -31,6 +33,9 @@ export default function Ranking() {
   const [filterType, setFilterType] = useState<FilterType>('friends');
   const [holeFilter, setHoleFilter] = useState<HoleType>('18-hole');
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
+  const [rankings, setRankings] = useState<PlayerRanking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Animation values
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -39,6 +44,40 @@ export default function Ranking() {
   const contentAnim = useRef(new Animated.Value(0)).current;
   const searchButtonScale = useRef(new Animated.Value(1)).current;
   const trophyRotate = useRef(new Animated.Value(0)).current;
+
+  // Fetch rankings from API
+  useEffect(() => {
+    fetchRankings();
+  }, []);
+
+  const fetchRankings = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getRankings();
+      
+      if (response.error) {
+        setError(response.error);
+        setRankings([]);
+      } else if (response.data) {
+        // Transform backend data to PlayerRanking format
+        const transformedRankings: PlayerRanking[] = response.data.map((player: any, index: number) => ({
+          id: `player-${index}`,
+          name: player.name,
+          netScore: Math.round(player.average_score),
+          rounds: 1, // Backend doesn't provide this yet
+          handicap: 0, // Backend doesn't provide this yet
+        }));
+        setRankings(transformedRankings);
+      }
+    } catch (err) {
+      console.error('Error fetching rankings:', err);
+      setError('Failed to load rankings');
+      setRankings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Entrance animations
@@ -89,9 +128,6 @@ export default function Ranking() {
 
     return () => wiggle.stop();
   }, []);
-
-  // Rankings will come from API - empty for now
-  const sampleRankings: PlayerRanking[] = [];
 
   const handleSearch = () => {
     createButtonPressAnimation(searchButtonScale, () => {
@@ -268,7 +304,20 @@ export default function Ranking() {
             </Text>
           </View>
 
-          {sampleRankings.length === 0 ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={GolfColors.primary} />
+              <Text style={styles.loadingText}>Loading rankings...</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={48} color="#E74C3C" />
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={fetchRankings}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : rankings.length === 0 ? (
             <View style={styles.emptyContainer}>
               <ImageBackground
                 source={require('@/assets/images/golf/golf-sunset.jpg')}
@@ -298,7 +347,7 @@ export default function Ranking() {
             </View>
           ) : (
             <View style={styles.rankingsList}>
-              {sampleRankings.map((player, index) => renderRankingItem(player, index + 1))}
+              {rankings.map((player, index) => renderRankingItem(player, index + 1))}
             </View>
           )}
         </Animated.View>
@@ -577,5 +626,44 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 100,
+  },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: GolfColors.white,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.small,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: 14,
+    color: GolfColors.gray,
+  },
+  errorContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: GolfColors.white,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.small,
+  },
+  errorText: {
+    marginTop: Spacing.md,
+    fontSize: 14,
+    color: '#E74C3C',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: GolfColors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  retryButtonText: {
+    color: GolfColors.white,
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
