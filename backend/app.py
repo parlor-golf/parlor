@@ -62,6 +62,33 @@ def submit_score():
     except Exception as e:
         return jsonify({"error": str(e)}), 401
     
+@app.route("/me/final-score", methods=["GET"])
+def get_my_final_score():
+    """
+    Returns the current Final Score for the authenticated user.
+
+    Final Score = average of best X normalized rounds (Score - CourseRating).
+    If needed, this recomputes it from the database.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = auth.get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        final_score = update_user_final_score(db, uid)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"final_score": final_score}), 200
+    
 @app.route("/delete-score/<score_id>", methods=["DELETE"])
 def delete_score_route(score_id):
     auth_header = request.headers.get("Authorization")
