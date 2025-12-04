@@ -25,6 +25,11 @@ config = {
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
 FIREBASE_AUTH_BASE = "https://identitytoolkit.googleapis.com/v1/accounts"
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(
+    api_key = OPENAI_API_KEY
+)
+
 firebase = None
 db = None
 
@@ -67,18 +72,6 @@ def firebase_get_account_info(id_token: str):
     }
     response = requests.post(url, json=payload, timeout=10)
     return response.json()
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-client = OpenAI(
-    api_key = OPENAI_API_KEY
-)
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-client = OpenAI(
-    api_key = OPENAI_API_KEY
-)
 
 app = Flask(__name__)
 CORS(app)
