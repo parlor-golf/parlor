@@ -1,2 +1,2 @@
 # parlor
-open project@berkley PARlor
+open project@berkeley PARlor
