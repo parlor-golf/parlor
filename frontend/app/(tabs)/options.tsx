@@ -25,7 +25,6 @@ import { router } from 'expo-router';
 export default function Options() {
   const [notifications, setNotifications] = useState(true);
   const [locationServices, setLocationServices] = useState(true);
-  const [autoScoring, setAutoScoring] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
@@ -279,6 +278,10 @@ export default function Options() {
     createButtonPressAnimation(profilePhotoScale, handleChangeProfilePhoto);
   };
 
+  const handleProfilePress = () => {
+    router.push('/social/profile');
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -346,12 +349,12 @@ export default function Options() {
             </View>
             </TouchableOpacity>
           </Animated.View>
-          <View style={styles.profileInfo}>
+          <TouchableOpacity style={styles.profileInfo} onPress={handleProfilePress}>
             <Text style={styles.profileName}>{userName}</Text>
             <Text style={styles.profileStatus}>
               {isAuthenticated ? 'Signed In' : 'Not Signed In'}
             </Text>
-          </View>
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Golf Settings */}
@@ -379,14 +382,6 @@ export default function Options() {
               subtitle="Detect course based on location"
               value={locationServices}
               onValueChange={setLocationServices}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-              icon="flash"
-              title="Smart Scoring"
-              subtitle="Get scoring suggestions"
-              value={autoScoring}
-              onValueChange={setAutoScoring}
             />
           </View>
         </Animated.View>
