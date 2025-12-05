@@ -52,6 +52,16 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface UserProfile {
+  uid: string;
+  name?: string;
+  email?: string;
+  final_score?: number | null;
+  friends_count?: number;
+  is_friend?: boolean;
+  total_sessions?: number;
+}
+
 // Auth functions
 export const signUp = async (email: string, password: string, name: string) => {
   try {
@@ -134,6 +144,26 @@ export const getUserSessions = async (limit?: number): Promise<ApiResponse<{ ses
     return { data: response.data };
   } catch (error: any) {
     return { error: error.response?.data?.error || 'Failed to fetch sessions' };
+  }
+};
+
+export const getUserSessionsById = async (uid: string, limit?: number): Promise<ApiResponse<{ sessions: GolfSession[] }>> => {
+  try {
+    const params: Record<string, any> = { uid };
+    if (limit) params.limit = limit;
+    const response = await api.get('/sessions', { params });
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to fetch sessions' };
+  }
+};
+
+export const getUserProfile = async (uid: string): Promise<ApiResponse<{ profile: UserProfile }>> => {
+  try {
+    const response = await api.get(`/users/${uid}`);
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to fetch profile' };
   }
 };
 
