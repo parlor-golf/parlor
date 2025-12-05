@@ -8,7 +8,7 @@ import requests
 import statistics
 
 GOLFCOURSE_API_BASE_URL = os.getenv("GOLFCOURSE_API_BASE_URL", "https://api.golfcourseapi.com")
-GOLFCOURSE_API_KEY = os.getenv("5EBUXXT3X5AIJUE7GMYCKH6XPU")
+GOLFCOURSE_API_KEY = "5EBUXXT3X5AIJUE7GMYCKH6XPU"
 NORMALIZED_TOP_ROUNDS = 8  # Number of best normalized rounds to average for Final Score
 
 def fetch_course_rating_from_api(course_name: str) -> float | None:
