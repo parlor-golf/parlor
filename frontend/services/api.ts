@@ -62,11 +62,25 @@ export interface UserProfile {
   total_sessions?: number;
 }
 
-export interface League {
+export interface LeagueSummary {
   id: string;
   name?: string;
   creatorUid?: string;
   memberCount?: number;
+}
+
+export interface LeagueMember {
+  uid: string;
+  name?: string;
+}
+
+export interface LeagueDetail {
+  id: string;
+  name?: string;
+  creatorUid?: string;
+  memberCount?: number;
+  weeklyChallenge?: string;
+  members: LeagueMember[];
 }
 
 // Auth functions
@@ -249,12 +263,30 @@ export const sendFriendRequest = async (receiver_uid: string): Promise<ApiRespon
 };
 
 // League functions
-export const getLeagues = async (): Promise<ApiResponse<{ leagues: League[] }>> => {
+export const getLeagues = async (): Promise<ApiResponse<{ leagues: LeagueSummary[] }>> => {
   try {
     const response = await api.get('/leagues');
     return { data: response.data };
   } catch (error: any) {
     return { error: error.response?.data?.error || 'Failed to fetch leagues' };
+  }
+};
+
+export const getLeagueDetail = async (league_id: string): Promise<ApiResponse<{ league: LeagueDetail }>> => {
+  try {
+    const response = await api.get(`/leagues/${league_id}`);
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to fetch league detail' };
+  }
+};
+
+export const searchLeagues = async (name: string): Promise<ApiResponse<{ leagues: LeagueSummary[] }>> => {
+  try {
+    const response = await api.get('/leagues/search', { params: { name } });
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to search leagues' };
   }
 };
 

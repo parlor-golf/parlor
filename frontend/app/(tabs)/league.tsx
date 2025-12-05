@@ -3,17 +3,22 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert,
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { GolfColors } from '@/constants/theme';
-import { createLeague as createLeagueApi, getLeagues, joinLeague as joinLeagueApi } from '@/services/api';
-import type { League } from '@/services/api';
+import { createLeague as createLeagueApi, getLeagueDetail, getLeagues, joinLeague as joinLeagueApi, searchLeagues } from '@/services/api';
+import type { LeagueDetail, LeagueSummary } from '@/services/api';
 
 export default function League() {
-  const [leagues, setLeagues] = useState<League[]>([]);
+  const [leagues, setLeagues] = useState<LeagueSummary[]>([]);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
+  const [selectedLeague, setSelectedLeague] = useState<LeagueDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [leagueName, setLeagueName] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [searchResults, setSearchResults] = useState<LeagueSummary[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const loadLeagues = async () => {
     setIsLoading(true);
@@ -30,6 +35,19 @@ export default function League() {
   useEffect(() => {
     loadLeagues();
   }, []);
+
+  const loadLeagueDetail = async (leagueId: string) => {
+    setDetailLoading(true);
+    setSelectedLeagueId(leagueId);
+    setSelectedLeague(null);
+    const response = await getLeagueDetail(leagueId);
+    if (response.error) {
+      Alert.alert('Error', response.error);
+    } else {
+      setSelectedLeague(response.data?.league || null);
+    }
+    setDetailLoading(false);
+  };
 
   const handleCreateLeague = async () => {
     if (!leagueName.trim()) {
@@ -49,19 +67,38 @@ export default function League() {
     loadLeagues();
   };
 
+  const handleSearchLeagues = async () => {
+    if (!joinCode.trim()) {
+      Alert.alert('Error', 'Please enter a league name to search');
+      return;
+    }
+    setSearchLoading(true);
+    const response = await searchLeagues(joinCode);
+    if (response.error) {
+      Alert.alert('Error', response.error);
+      setSearchResults([]);
+    } else {
+      setSearchResults(response.data?.leagues || []);
+    }
+    setSearchLoading(false);
+  };
+
   const handleJoinLeague = async () => {
     if (!joinCode.trim()) {
-      Alert.alert('Error', 'Please enter a league code');
+      Alert.alert('Error', 'Please enter a league name or ID');
       return;
     }
 
-    const response = await joinLeagueApi(joinCode);
+    // If user searched and selected result, prefer joining by the first match ID
+    const targetId = searchResults.find((l) => l.name?.toLowerCase() === joinCode.toLowerCase())?.id || joinCode;
+    const response = await joinLeagueApi(targetId);
     if (response.error) {
       Alert.alert('Error', response.error);
     } else {
       Alert.alert('Success', 'Joined league!');
       setShowJoinForm(false);
       setJoinCode('');
+      setSearchResults([]);
       loadLeagues();
     }
   };
@@ -108,7 +145,14 @@ export default function League() {
           )}
 
           {!isLoading && leagues.map((league) => (
-            <View key={league.id} style={styles.leagueCard}>
+            <TouchableOpacity
+              key={league.id}
+              style={[
+                styles.leagueCard,
+                selectedLeagueId === league.id && styles.leagueCardSelected,
+              ]}
+              onPress={() => loadLeagueDetail(league.id)}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={styles.leagueName}>{league.name || 'Untitled League'}</Text>
                 <Text style={styles.leagueMeta}>
@@ -116,11 +160,35 @@ export default function League() {
                 </Text>
               </View>
               <View style={styles.leagueBadge}>
-                <Text style={styles.leagueBadgeText}>Active</Text>
+                <Text style={styles.leagueBadgeText}>View</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </ThemedView>
+
+        {detailLoading && (
+          <View style={styles.centered}>
+            <ActivityIndicator color={GolfColors.primary} />
+          </View>
+        )}
+
+        {!detailLoading && selectedLeague && (
+          <ThemedView style={styles.detailCard}>
+            <ThemedText type="subtitle">{selectedLeague.name}</ThemedText>
+            <Text style={styles.challengeLabel}>Weekly Challenge</Text>
+            <Text style={styles.challengeText}>{selectedLeague.weeklyChallenge}</Text>
+
+            <Text style={[styles.challengeLabel, { marginTop: 12 }]}>
+              Members ({selectedLeague.memberCount || selectedLeague.members.length})
+            </Text>
+            {selectedLeague.members.map((member) => (
+              <View key={member.uid} style={styles.memberRow}>
+                <Text style={styles.memberBullet}>•</Text>
+                <Text style={styles.memberName}>{member.name || member.uid}</Text>
+              </View>
+            ))}
+          </ThemedView>
+        )}
 
         <TouchableOpacity
           style={[styles.actionButton, styles.secondaryButton]}
@@ -143,16 +211,39 @@ export default function League() {
             <ThemedText type="subtitle">Join League</ThemedText>
             <TextInput
               style={styles.input}
-              placeholder="League Code"
+              placeholder="League Name or ID"
               value={joinCode}
               onChangeText={setJoinCode}
             />
+            <TouchableOpacity style={[styles.formButton, styles.secondaryButton]} onPress={handleSearchLeagues}>
+              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+                {searchLoading ? 'Searching...' : 'Search by Name'}
+              </Text>
+            </TouchableOpacity>
+            {!searchLoading && searchResults.length > 0 && (
+              <View style={{ marginTop: 10, gap: 8 }}>
+                {searchResults.map((result) => (
+                  <TouchableOpacity
+                    key={result.id}
+                    style={styles.searchResult}
+                    onPress={() => {
+                      setJoinCode(result.name || result.id);
+                      handleJoinLeague();
+                    }}
+                  >
+                    <Text style={styles.leagueName}>{result.name}</Text>
+                    <Text style={styles.leagueMeta}>Members: {result.memberCount ?? 0}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             <View style={styles.buttonRow}>
               <TouchableOpacity
                 style={[styles.formButton, styles.cancelButton]}
                 onPress={() => {
                   setShowJoinForm(false);
                   setJoinCode('');
+                  setSearchResults([]);
                 }}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -342,11 +433,6 @@ const styles = StyleSheet.create({
     color: GolfColors.white,
     fontWeight: '600',
   },
-  challengeText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    marginTop: 8,
-  },
   leagueCard: {
     backgroundColor: GolfColors.cardBg,
     borderRadius: 10,
@@ -377,6 +463,49 @@ const styles = StyleSheet.create({
     color: GolfColors.white,
     fontWeight: '700',
     fontSize: 12,
+  },
+  leagueCardSelected: {
+    borderColor: GolfColors.primary,
+    borderWidth: 1.5,
+  },
+  detailCard: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    backgroundColor: GolfColors.cardBg,
+  },
+  challengeLabel: {
+    marginTop: 8,
+    fontWeight: '700',
+    color: GolfColors.primaryDark,
+  },
+  challengeText: {
+    fontSize: 16,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  memberBullet: {
+    marginRight: 6,
+    color: GolfColors.primary,
+    fontSize: 14,
+  },
+  memberName: {
+    fontSize: 14,
+    color: GolfColors.primaryDark,
+  },
+  searchResult: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    backgroundColor: GolfColors.cardBg,
   },
   emptyState: {
     alignItems: 'center',
