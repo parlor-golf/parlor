@@ -8,7 +8,7 @@ import requests
 import statistics
 
 GOLFCOURSE_API_BASE_URL = os.getenv("GOLFCOURSE_API_BASE_URL", "https://api.golfcourseapi.com")
-GOLFCOURSE_API_KEY = "5EBUXXT3X5AIJUE7GMYCKH6XPU"
+GOLFCOURSE_API_KEY = os.getenv("5EBUXXT3X5AIJUE7GMYCKH6XPU")
 NORMALIZED_TOP_ROUNDS = 8  # Number of best normalized rounds to average for Final Score
 
 def fetch_course_rating_from_api(course_name: str) -> float | None:
@@ -383,3 +383,31 @@ def get_feed_sessions(db: Database, uid, limit=20):
 def delete_session(db: Database, session_id):
     """Delete a golf session"""
     db.child("sessions").child(session_id).remove()
+
+def create_league(db: Database, uid, league_data):
+    """
+    Create a new league
+    league_data should include:
+    - name: str
+    - description: str
+    - privacy: str ("public", "private")
+    """
+    league = {
+        "creatorUid": uid,
+        "name": league_data.get("name"),
+        "members": {uid: True},  # Creator is the first member
+        "createdAt": datetime.now().isoformat()
+    }
+    league_ref = db.child("leagues").push(league)
+    return league_ref["name"]  # Return the league ID
+
+def join_league(db: Database, uid, league_id):
+    """Join an existing league"""
+    league = db.child("leagues").child(league_id).get().val()
+    if not league:
+        raise ValueError("League does not exist.")
+    db.child("leagues").child(league_id).child("members").child(uid).set(True)
+
+def delete_league(db: Database, league_id):
+    """Delete a league"""
+    db.child("leagues").child(league_id).remove()

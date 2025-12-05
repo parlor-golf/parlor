@@ -526,6 +526,60 @@ def add_comment_route(session_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+@app.route("/create_league", methods=["POST"])
+def create_league_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+    data = request.json
+    league_name = data.get("league_name")
+    member_uids = data.get("member_uids", [])
+    if not league_name:
+        return jsonify({"error": "Missing league name"}), 400
+    try:
+        user_info = firebase_get_account_info(id_token)
+        creator_uid = user_info["users"][0]["localId"]
+        league_id = create_league(get_db(), creator_uid, league_name, member_uids)
+        return jsonify({"message": "League created", "league_id": league_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/join_league", methods=["POST"])
+def join_league_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+    data = request.json
+    league_id = data.get("league_id")
+    if not league_id:
+        return jsonify({"error": "Missing league ID"}), 400
+    try:
+        user_info = firebase_get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+        join_league(get_db(), uid, league_id)
+        return jsonify({"message": "Joined league successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/delete_league", methods=["POST"])
+def delete_league_route():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+    data = request.json
+    league_id = data.get("league_id")
+    if not league_id:
+        return jsonify({"error": "Missing league ID"}), 400
+    try:
+        user_info = firebase_get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+        delete_league(get_db(), uid, league_id)
+        return jsonify({"message": "League deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5001)
