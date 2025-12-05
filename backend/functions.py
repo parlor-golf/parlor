@@ -9,30 +9,7 @@ import statistics
 
 GOLFCOURSE_API_BASE_URL = os.getenv("GOLFCOURSE_API_BASE_URL", "https://api.golfcourseapi.com")
 GOLFCOURSE_API_KEY = os.getenv("5EBUXXT3X5AIJUE7GMYCKH6XPU")
-
-def add_score(db: Database, name, uid, course, score):
-
-    score = float(score)
-
-    course_rating = fetch_course_rating(db, course)
-    normalized_score = None
-
-    if course_rating is not None:
-        course_rating = float(course_rating)
-        normalized_score = score - course_rating
-
-    score_data = {
-        "uid": uid,
-        "name": name,
-        "course": course,
-        "score": score,
-        "timestamp": datetime.now().isoformat(),
-        "course_rating": course_rating,
-        "normalized_score": normalized_score,
-    }
-    db.child("scores").push(score_data)
-
-    update_user_final_score(db, uid)
+NORMALIZED_TOP_ROUNDS = 8  # Number of best normalized rounds to average for Final Score
 
 def fetch_course_rating_from_api(course_name: str) -> float | None:
     """
@@ -126,7 +103,7 @@ def update_user_final_score(db: Database, uid: str) -> float | None:
     and store the result under /users/<uid>/final_score.
     """
     scores_snapshot = (
-        db.child("scores")
+        db.child("sessions")
         .order_by_child("uid")
         .equal_to(uid)
         .get()
@@ -252,6 +229,14 @@ def create_session(db: Database, uid, session_data):
     # Get user info
     user_data = db.child("users").child(uid).get().val()
     username = user_data.get("name") if user_data else "Unknown"
+    
+    score = session_data.get("totalScore")
+    course_rating = fetch_course_rating(db, session_data.get("courseName"))
+    normalized_score = None
+
+    if course_rating is not None:
+        course_rating = float(course_rating)
+        normalized_score = score - course_rating
 
     session = {
         "uid": uid,
@@ -267,10 +252,13 @@ def create_session(db: Database, uid, session_data):
         "privacy": session_data.get("privacy", "friends"),
         "images": session_data.get("images", []),
         "videos": session_data.get("videos", []),
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "course_rating": course_rating,
+        "normalized_score": normalized_score
     }
 
     session_ref = db.child("sessions").push(session)
+    update_user_final_score(db, uid)
     return session_ref["name"]  # Return the session ID
 
 def get_user_sessions(db: Database, uid, limit=None):

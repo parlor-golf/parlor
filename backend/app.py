@@ -77,33 +77,6 @@ def firebase_get_account_info(id_token: str):
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/submit-score", methods=["POST"])
-def submit_score():
-    data = request.json
-    course = data.get("course")
-    score = data.get("score")
-
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-    
-    id_token = auth_header.split(" ")[1]
-
-    try:
-        user_info = firebase_get_account_info(id_token)
-        uid = user_info['users'][0]['localId']
-
-        user_data = db.child("users").child(uid).get().val()
-        name = user_data.get("name") if user_data else None
-
-        if not all([name, course, score]):
-            return jsonify({"error": "Missing data"}), 400
-
-        add_score(get_db(), name, uid, course, score)
-        return jsonify({"message": "Score submitted!"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 401
     
 @app.route("/me/final-score", methods=["GET"])
 def get_my_final_score():
@@ -120,7 +93,7 @@ def get_my_final_score():
     id_token = auth_header.split(" ")[1]
 
     try:
-        user_info = Auth.get_account_info(id_token)
+        user_info = firebase_get_account_info(id_token)
         uid = user_info["users"][0]["localId"]
     except Exception as e:
         return jsonify({"error": str(e)}), 400
