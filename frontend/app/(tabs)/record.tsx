@@ -293,6 +293,27 @@ export default function Record() {
     }
   };
 
+  const cancelSession = () => {
+    Alert.alert(
+      'Cancel Round',
+      'Are you sure you want to exit this round? Your scores and photos will be discarded.',
+      [
+        { text: 'Keep Playing', style: 'cancel' },
+        {
+          text: 'Cancel Round',
+          style: 'destructive',
+          onPress: () => {
+            setActiveSession(null);
+            setTimer(0);
+            setScores({});
+            setPrivacy('friends');
+            setSessionPhotos([]);
+          },
+        },
+      ]
+    );
+  };
+
   const updateScore = (hole: number, score: string) => {
     setScores(prev => ({
       ...prev,
@@ -611,30 +632,41 @@ export default function Record() {
           </View>
         </Animated.View>
 
-        {/* Finish Button */}
+        {/* Finish / Cancel Buttons */}
         <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-          <TouchableOpacity
-            style={[styles.finishButton, isSaving && styles.disabledButton]}
-            onPress={() => !isSaving && animateButtonPress(endSession)}
-            disabled={isSaving}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={[GolfColors.primaryDark, GolfColors.primary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.finishButtonGradient}
+          <View style={styles.actionButtonsRow}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => animateButtonPress(cancelSession)}
+              activeOpacity={0.85}
             >
-              {isSaving ? (
-                <ActivityIndicator color={GolfColors.white} />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={24} color={GolfColors.white} />
-                  <Text style={styles.finishButtonText}>Finish Round</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+              <Ionicons name="close" size={18} color={GolfColors.error} />
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.finishButton, isSaving && styles.disabledButton]}
+              onPress={() => !isSaving && animateButtonPress(endSession)}
+              disabled={isSaving}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[GolfColors.primaryDark, GolfColors.primary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.finishButtonGradient}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color={GolfColors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={24} color={GolfColors.white} />
+                    <Text style={styles.finishButtonText}>Finish Round</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         <View style={styles.bottomSpacer} />
@@ -949,6 +981,27 @@ const styles = StyleSheet.create({
   finishButtonText: {
     color: GolfColors.white,
     fontSize: 18,
+    fontWeight: '700',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  cancelButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    borderColor: GolfColors.error,
+    backgroundColor: GolfColors.white,
+    gap: Spacing.xs,
+  },
+  cancelButtonText: {
+    color: GolfColors.error,
+    fontSize: 16,
     fontWeight: '700',
   },
   disabledButton: {
