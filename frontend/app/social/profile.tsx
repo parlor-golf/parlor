@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, TextInput, Alert, RefreshControl, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getUserSessions, GolfSession as ApiGolfSession } from '@/services/api';
+import { GolfSession as ApiGolfSession, getUserProfile, getUserSessionsById, UserProfile as ApiUserProfile } from '@/services/api';
+import { useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GolfColors } from '@/constants/theme';
 
@@ -30,18 +31,21 @@ interface UserProfile {
 }
 
 export default function Profile() {
+  const params = useLocalSearchParams();
   const [isEditing, setIsEditing] = useState(false);
   const [searchUsername, setSearchUsername] = useState('');
   const [golfSessions, setGolfSessions] = useState<GolfSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isViewingSelf, setIsViewingSelf] = useState(true);
+  const [friendsCount, setFriendsCount] = useState(0);
 
-  // Sample user data - would come from auth/API
   const [userProfile, setUserProfile] = useState<UserProfile>({
     id: 'currentUser',
-    name: 'John Doe',
-    username: 'johndoe',
-    email: 'john@example.com',
+    name: 'Golfer',
+    username: 'golfer',
+    email: '',
     handicap: 15,
     totalRounds: 0,
     averageScore: 0,
@@ -49,55 +53,76 @@ export default function Profile() {
   });
 
   useEffect(() => {
-    loadUserProfile();
-    loadSessions();
-  }, []);
+    loadProfileAndSessions();
+  }, [params.userId]);
 
-  const loadUserProfile = async () => {
-    const name = await AsyncStorage.getItem('name');
-    if (name) {
-      setUserProfile(prev => ({ ...prev, name }));
-    }
-  };
-
-  const loadSessions = async () => {
+  const loadProfileAndSessions = async () => {
+    setIsProfileLoading(true);
     setIsLoading(true);
-    const result = await getUserSessions();
 
-    if (result.data && result.data.sessions) {
-      const sessions: GolfSession[] = result.data.sessions.map((session: ApiGolfSession) => ({
+    const nameFromStorage = await AsyncStorage.getItem('name');
+    const uidFromStorage = await AsyncStorage.getItem('uid');
+    const incomingUid = typeof params.userId === 'string' ? params.userId : undefined;
+    const targetUid = incomingUid || uidFromStorage || '';
+
+    setIsViewingSelf(!incomingUid || incomingUid === uidFromStorage);
+
+    if (!targetUid) {
+      setIsProfileLoading(false);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const [profileRes, sessionsRes] = await Promise.all([
+        getUserProfile(targetUid),
+        getUserSessionsById(targetUid),
+      ]);
+
+      const profileData: ApiUserProfile | undefined = profileRes.data?.profile;
+      const fetchedSessions = (sessionsRes.data?.sessions || []).map((session: ApiGolfSession) => ({
         id: session.id || '',
         courseName: session.courseName,
         date: session.endTime || session.timestamp || '',
         holes: session.holes,
         totalScore: session.totalScore,
-        par: session.holes === 18 ? 72 : 36, // Default par values
+        par: session.holes === 18 ? 72 : 36,
         isPrivate: session.privacy === 'private',
       }));
 
-      setGolfSessions(sessions);
+      setGolfSessions(fetchedSessions);
 
-      // Calculate statistics from sessions
-      if (sessions.length > 0) {
-        const totalRounds = sessions.length;
-        const averageScore = Math.round(
-          sessions.reduce((sum, s) => sum + s.totalScore, 0) / totalRounds
-        );
+      const totalRounds = fetchedSessions.length;
+      const averageScore = totalRounds > 0
+        ? Math.round(fetchedSessions.reduce((sum, s) => sum + s.totalScore, 0) / totalRounds)
+        : 0;
 
-        setUserProfile(prev => ({
-          ...prev,
-          totalRounds,
-          averageScore,
-        }));
-      }
+      setUserProfile(prev => ({
+        ...prev,
+        id: targetUid,
+        name: profileData?.name || nameFromStorage || prev.name,
+        username: profileData?.name
+          ? profileData.name.toLowerCase().replace(/\s+/g, '')
+          : prev.username,
+        email: profileData?.email || prev.email,
+        handicap: profileData?.final_score ?? prev.handicap,
+        totalRounds: profileData?.total_sessions ?? totalRounds,
+        averageScore,
+        friends: prev.friends,
+      }));
+
+      setFriendsCount(profileData?.friends_count ?? 0);
+    } catch (error) {
+      Alert.alert('Error', 'Unable to load profile right now.');
+    } finally {
+      setIsProfileLoading(false);
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadSessions();
+    await loadProfileAndSessions();
     setRefreshing(false);
   };
 
@@ -172,6 +197,13 @@ export default function Profile() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {isProfileLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={GolfColors.primary} />
+            <Text style={{ marginTop: 8, color: GolfColors.gray }}>Loading profile...</Text>
+          </View>
+        ) : (
+          <>
         {/* Profile Info */}
         <ThemedView style={styles.profileSection}>
           <View style={styles.avatarContainer}>
@@ -201,19 +233,25 @@ export default function Profile() {
 
         {/* Friends Section */}
         <ThemedView style={styles.section}>
-          <ThemedText type="subtitle">Friends ({userProfile.friends.length})</ThemedText>
+          <ThemedText type="subtitle">Friends ({friendsCount || userProfile.friends.length})</ThemedText>
           
-          <View style={styles.addFriendContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Enter username"
-              value={searchUsername}
-              onChangeText={setSearchUsername}
-            />
-            <TouchableOpacity style={styles.addButton} onPress={addFriend}>
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
-          </View>
+          {isViewingSelf ? (
+            <View style={styles.addFriendContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Enter username"
+                value={searchUsername}
+                onChangeText={setSearchUsername}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={addFriend}>
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={{ color: GolfColors.gray, marginTop: 8 }}>
+              You&apos;re viewing a public profile.
+            </Text>
+          )}
           
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.friendsList}>
             {userProfile.friends.map((friend, index) => (
@@ -246,6 +284,8 @@ export default function Profile() {
             </View>
           )}
         </ThemedView>
+          </>
+        )}
       </ScrollView>
     </ThemedView>
   );

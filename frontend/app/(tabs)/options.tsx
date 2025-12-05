@@ -14,19 +14,20 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
+import { GolfColors, Shadows, Spacing, BorderRadius, Colors, Gradients } from '@/constants/theme';
 import { signUp, signIn } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showImagePickerOptions } from '@/services/imagePicker';
 import { uploadProfilePhoto } from '@/services/firebase';
 import { SpringConfigs, createButtonPressAnimation } from '@/utils/animations';
 import { router } from 'expo-router';
+import { setThemePreference, useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function Options() {
   const [notifications, setNotifications] = useState(true);
   const [locationServices, setLocationServices] = useState(true);
-  const [autoScoring, setAutoScoring] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const colorScheme = useColorScheme();
+  const [darkMode, setDarkMode] = useState(colorScheme === 'dark');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -45,6 +46,10 @@ export default function Options() {
     new Animated.Value(0),
   ]).current;
   const profilePhotoScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    setDarkMode(colorScheme === 'dark');
+  }, [colorScheme]);
 
   useEffect(() => {
     checkAuth();
@@ -234,19 +239,19 @@ export default function Options() {
     onValueChange: (value: boolean) => void;
   }) => (
     <View style={styles.settingItem}>
-      <View style={styles.settingIcon}>
+      <View style={[styles.settingIcon, { backgroundColor: isDarkMode ? dynamicColors.divider : GolfColors.cardBg }]}>
         <Ionicons name={icon} size={20} color={GolfColors.primary} />
       </View>
       <View style={styles.settingText}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        <Text style={[styles.settingTitle, { color: dynamicColors.textPrimary }]}>{title}</Text>
+        {subtitle && <Text style={[styles.settingSubtitle, { color: dynamicColors.textSecondary }]}>{subtitle}</Text>}
       </View>
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: GolfColors.lightGray, true: GolfColors.primaryLight }}
+        trackColor={{ false: dynamicColors.divider, true: GolfColors.primaryLight }}
         thumbColor={value ? GolfColors.white : '#f4f3f4'}
-        ios_backgroundColor={GolfColors.lightGray}
+        ios_backgroundColor={dynamicColors.divider}
       />
     </View>
   );
@@ -270,7 +275,7 @@ export default function Options() {
       </View>
       <Text style={[styles.buttonText, { color }]}>{title}</Text>
       {showArrow && (
-        <Ionicons name="chevron-forward" size={20} color={GolfColors.gray} />
+        <Ionicons name="chevron-forward" size={20} color={dynamicColors.textSecondary} />
       )}
     </TouchableOpacity>
   );
@@ -279,11 +284,29 @@ export default function Options() {
     createButtonPressAnimation(profilePhotoScale, handleChangeProfilePhoto);
   };
 
+  const handleProfilePress = () => {
+    router.push('/social/profile');
+  };
+
+  const handleToggleDarkMode = async (value: boolean) => {
+    setDarkMode(value);
+    await setThemePreference(value ? 'dark' : 'light');
+  };
+
+  const isDarkMode = colorScheme === 'dark';
+  const dynamicColors = {
+    background: isDarkMode ? Colors.dark.background : GolfColors.lightGray,
+    card: isDarkMode ? '#223222' : GolfColors.white,
+    textPrimary: isDarkMode ? Colors.dark.text : GolfColors.black,
+    textSecondary: isDarkMode ? Colors.dark.icon : GolfColors.gray,
+    divider: isDarkMode ? '#2f4230' : GolfColors.lightGray,
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: dynamicColors.background }]}>
       {/* Header */}
       <LinearGradient
-        colors={[GolfColors.primary, GolfColors.primaryDark]}
+        colors={isDarkMode ? [GolfColors.primaryDark, GolfColors.primary] : [GolfColors.primary, GolfColors.primaryDark]}
         style={styles.header}
       >
         <Animated.Text
@@ -318,6 +341,7 @@ export default function Options() {
             {
               opacity: profileCardAnim,
               transform: [{ scale: profileCardScale }],
+              backgroundColor: dynamicColors.card,
             },
           ]}
         >
@@ -346,12 +370,12 @@ export default function Options() {
             </View>
             </TouchableOpacity>
           </Animated.View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{userName}</Text>
-            <Text style={styles.profileStatus}>
+          <TouchableOpacity style={styles.profileInfo} onPress={handleProfilePress}>
+            <Text style={[styles.profileName, { color: dynamicColors.textPrimary }]}>{userName}</Text>
+            <Text style={[styles.profileStatus, { color: dynamicColors.textSecondary }]}>
               {isAuthenticated ? 'Signed In' : 'Not Signed In'}
             </Text>
-          </View>
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Golf Settings */}
@@ -371,22 +395,14 @@ export default function Options() {
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>Golf Settings</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: dynamicColors.textSecondary }]}>Golf Settings</Text>
+          <View style={[styles.sectionCard, { backgroundColor: dynamicColors.card }]}>
             <SettingItem
               icon="location"
               title="Auto Course Detection"
               subtitle="Detect course based on location"
               value={locationServices}
               onValueChange={setLocationServices}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-              icon="flash"
-              title="Smart Scoring"
-              subtitle="Get scoring suggestions"
-              value={autoScoring}
-              onValueChange={setAutoScoring}
             />
           </View>
         </Animated.View>
@@ -408,8 +424,8 @@ export default function Options() {
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: dynamicColors.textSecondary }]}>Notifications</Text>
+          <View style={[styles.sectionCard, { backgroundColor: dynamicColors.card }]}>
             <SettingItem
               icon="notifications"
               title="Push Notifications"
@@ -437,14 +453,14 @@ export default function Options() {
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: dynamicColors.textSecondary }]}>Appearance</Text>
+          <View style={[styles.sectionCard, { backgroundColor: dynamicColors.card }]}>
             <SettingItem
               icon="moon"
               title="Dark Mode"
               subtitle="Use dark theme"
               value={darkMode}
-              onValueChange={setDarkMode}
+              onValueChange={handleToggleDarkMode}
             />
           </View>
         </Animated.View>
@@ -466,20 +482,20 @@ export default function Options() {
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>Support</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: dynamicColors.textSecondary }]}>Support</Text>
+          <View style={[styles.sectionCard, { backgroundColor: dynamicColors.card }]}>
             <ButtonItem
               icon="help-circle"
               title="Help Center"
               onPress={handleHelpCenter}
             />
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: dynamicColors.divider }]} />
             <ButtonItem
               icon="chatbubble"
               title="Contact Support"
               onPress={handleContactSupport}
             />
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: dynamicColors.divider }]} />
             <ButtonItem
               icon="bug"
               title="Report a Bug"
@@ -505,8 +521,8 @@ export default function Options() {
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: dynamicColors.textSecondary }]}>Account</Text>
+          <View style={[styles.sectionCard, { backgroundColor: dynamicColors.card }]}>
             {!isAuthenticated && (
               <>
                 <TouchableOpacity
@@ -523,7 +539,7 @@ export default function Options() {
                     <Text style={styles.primaryButtonText}>Create Test Account</Text>
                   </LinearGradient>
                 </TouchableOpacity>
-                <View style={styles.divider} />
+                <View style={[styles.divider, { backgroundColor: dynamicColors.divider }]} />
               </>
             )}
             <ButtonItem
@@ -533,7 +549,7 @@ export default function Options() {
               color={GolfColors.warning}
               showArrow={false}
             />
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: dynamicColors.divider }]} />
             <ButtonItem
               icon="trash"
               title="Delete Account"
@@ -561,16 +577,16 @@ export default function Options() {
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={[styles.sectionTitle, { color: dynamicColors.textSecondary }]}>About</Text>
           <View style={styles.aboutCard}>
             <LinearGradient
-              colors={[GolfColors.cardBg, GolfColors.cardBgAlt]}
+              colors={isDarkMode ? Gradients.cardDark : [GolfColors.cardBg, GolfColors.cardBgAlt]}
               style={styles.aboutGradient}
             >
               <Ionicons name="golf" size={32} color={GolfColors.primary} />
-              <Text style={styles.appName}>Parlor</Text>
-              <Text style={styles.appVersion}>Version 1.0.0</Text>
-              <Text style={styles.appCopyright}>© 2024 Parlor Golf</Text>
+              <Text style={[styles.appName, { color: isDarkMode ? Colors.dark.text : GolfColors.primaryDark }]}>Parlor</Text>
+              <Text style={[styles.appVersion, { color: dynamicColors.textSecondary }]}>Version 1.0.0</Text>
+              <Text style={[styles.appCopyright, { color: dynamicColors.textSecondary }]}>© 2024 Parlor Golf</Text>
             </LinearGradient>
           </View>
         </Animated.View>

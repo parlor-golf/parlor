@@ -353,12 +353,31 @@ def get_sessions_route():
 
     try:
         user_info = firebase_get_account_info(id_token)
-        uid = user_info["users"][0]["localId"]
+        viewer_uid = user_info["users"][0]["localId"]
 
         # Optional limit parameter
         limit = request.args.get("limit", type=int)
+        requested_uid = request.args.get("uid")
+        target_uid = requested_uid or viewer_uid
 
-        sessions = get_user_sessions(get_db(), uid, limit)
+        # Fetch all sessions for the target user so we can privacy-filter
+        raw_sessions = get_user_sessions(get_db(), target_uid, None)
+
+        if target_uid == viewer_uid:
+            sessions = raw_sessions
+        else:
+            # Only include public sessions or friends-only sessions if viewer is a friend
+            target_friends = set(get_friends(get_db(), target_uid))
+            is_friend = viewer_uid in target_friends
+            sessions = [
+                session for session in raw_sessions
+                if session.get("privacy", "friends") == "public"
+                or (session.get("privacy", "friends") == "friends" and is_friend)
+            ]
+
+        if limit:
+            sessions = sessions[:limit]
+
         return jsonify({"sessions": sessions}), 200
 
     except Exception as e:
@@ -417,6 +436,54 @@ def get_feed_route():
 
     except Exception as e:
         print(f"[FEED] ERROR: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/users/<uid>", methods=["GET"])
+def get_user_profile(uid):
+    """Return basic profile info for a user along with visibility metadata."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        viewer_info = firebase_get_account_info(id_token)
+        viewer_uid = viewer_info["users"][0]["localId"]
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        user_data = get_db().child("users").child(uid).get().val() or {}
+        if not user_data:
+            return jsonify({"error": "User not found"}), 404
+
+        friends_of_user = set(get_friends(get_db(), uid))
+        is_friend = viewer_uid in friends_of_user
+
+        # Count sessions visible to the viewer
+        raw_sessions = get_user_sessions(get_db(), uid, None)
+        if uid == viewer_uid:
+            visible_sessions = raw_sessions
+        else:
+            visible_sessions = [
+                session for session in raw_sessions
+                if session.get("privacy", "friends") == "public"
+                or (session.get("privacy", "friends") == "friends" and is_friend)
+            ]
+
+        profile = {
+            "uid": uid,
+            "name": user_data.get("name"),
+            "email": user_data.get("email"),
+            "final_score": user_data.get("final_score"),
+            "friends_count": len(friends_of_user),
+            "is_friend": is_friend,
+            "total_sessions": len(visible_sessions),
+        }
+
+        return jsonify({"profile": profile}), 200
+    except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
