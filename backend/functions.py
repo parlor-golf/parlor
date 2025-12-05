@@ -384,30 +384,53 @@ def delete_session(db: Database, session_id):
     """Delete a golf session"""
     db.child("sessions").child(session_id).remove()
 
-def create_league(db: Database, uid, league_data):
+def get_user_leagues(db: Database, uid: str, id_token: str | None = None):
     """
-    Create a new league
-    league_data should include:
-    - name: str
-    - description: str
-    - privacy: str ("public", "private")
+    Return leagues the user belongs to.
+    Each item includes id, name, creatorUid, and memberCount.
     """
+    leagues_snap = db.child("leagues").get(id_token)
+    leagues = []
+
+    if leagues_snap.each():
+        for league in leagues_snap.each():
+            data = league.val() or {}
+            members = data.get("members") or {}
+            if uid in members:
+                leagues.append({
+                    "id": league.key(),
+                    "name": data.get("name"),
+                    "creatorUid": data.get("creatorUid"),
+                    "memberCount": len(members)
+                })
+
+    return leagues
+
+def create_league(db: Database, uid: str, league_name: str, member_uids: list | None = None, id_token: str | None = None):
+    """
+    Create a new league with the creator as the first member.
+    """
+    member_uids = member_uids or []
+    members = {uid: True}
+    for member_uid in member_uids:
+        members[member_uid] = True
+
     league = {
         "creatorUid": uid,
-        "name": league_data.get("name"),
-        "members": {uid: True},  # Creator is the first member
+        "name": league_name,
+        "members": members,
         "createdAt": datetime.now().isoformat()
     }
-    league_ref = db.child("leagues").push(league)
+    league_ref = db.child("leagues").push(league, id_token)
     return league_ref["name"]  # Return the league ID
 
-def join_league(db: Database, uid, league_id):
+def join_league(db: Database, uid: str, league_id: str, id_token: str | None = None):
     """Join an existing league"""
-    league = db.child("leagues").child(league_id).get().val()
+    league = db.child("leagues").child(league_id).get(id_token).val()
     if not league:
         raise ValueError("League does not exist.")
-    db.child("leagues").child(league_id).child("members").child(uid).set(True)
+    db.child("leagues").child(league_id).child("members").child(uid).set(True, id_token)
 
-def delete_league(db: Database, league_id):
+def delete_league(db: Database, league_id: str, id_token: str | None = None):
     """Delete a league"""
-    db.child("leagues").child(league_id).remove()
+    db.child("leagues").child(league_id).remove(id_token)

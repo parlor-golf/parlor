@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For local development on device: http://YOUR_LOCAL_IP:5001
 // For iOS Simulator: http://localhost:5001
 // For production: your deployed backend URL
-const API_BASE_URL = 'http://127.0.0.1:5001';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://127.0.0.1:5001';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -60,6 +60,13 @@ export interface UserProfile {
   friends_count?: number;
   is_friend?: boolean;
   total_sessions?: number;
+}
+
+export interface League {
+  id: string;
+  name?: string;
+  creatorUid?: string;
+  memberCount?: number;
 }
 
 // Auth functions
@@ -238,6 +245,34 @@ export const sendFriendRequest = async (receiver_uid: string): Promise<ApiRespon
     return { data: response.data };
   } catch (error: any) {
     return { error: error.response?.data?.error || 'Failed to send friend request' };
+  }
+};
+
+// League functions
+export const getLeagues = async (): Promise<ApiResponse<{ leagues: League[] }>> => {
+  try {
+    const response = await api.get('/leagues');
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to fetch leagues' };
+  }
+};
+
+export const createLeague = async (league_name: string, member_uids: string[] = []): Promise<ApiResponse<{ league_id: string }>> => {
+  try {
+    const response = await api.post('/create_league', { league_name, member_uids });
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to create league' };
+  }
+};
+
+export const joinLeague = async (league_id: string): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await api.post('/join_league', { league_id });
+    return { data: response.data };
+  } catch (error: any) {
+    return { error: error.response?.data?.error || 'Failed to join league' };
   }
 };
 

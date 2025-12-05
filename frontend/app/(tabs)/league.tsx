@@ -1,250 +1,200 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { GolfColors } from '@/constants/theme';
-
-interface League {
-  id: string;
-  name: string;
-  ownerId: string;
-  members: string[];
-  weeklyChallenge?: string;
-  isOwner: boolean;
-}
+import { createLeague as createLeagueApi, getLeagues, joinLeague as joinLeagueApi } from '@/services/api';
+import type { League } from '@/services/api';
 
 export default function League() {
-  const [userLeague, setUserLeague] = useState<League | null>(null);
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [leagueName, setLeagueName] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [inviteUsername, setInviteUsername] = useState('');
 
-  const createLeague = () => {
+  const loadLeagues = async () => {
+    setIsLoading(true);
+    setError(null);
+    const response = await getLeagues();
+    if (response.error) {
+      setError(response.error);
+    } else {
+      setLeagues(response.data?.leagues || []);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadLeagues();
+  }, []);
+
+  const handleCreateLeague = async () => {
     if (!leagueName.trim()) {
       Alert.alert('Error', 'Please enter a league name');
       return;
     }
 
-    const newLeague: League = {
-      id: Date.now().toString(),
-      name: leagueName,
-      ownerId: 'currentUserId', // This would come from auth
-      members: ['currentUserId'],
-      weeklyChallenge: generateWeeklyChallenge(),
-      isOwner: true,
-    };
+    const response = await createLeagueApi(leagueName);
+    if (response.error) {
+      Alert.alert('Error', response.error);
+      return;
+    }
 
-    setUserLeague(newLeague);
     setShowCreateForm(false);
     setLeagueName('');
     Alert.alert('Success', `League "${leagueName}" created!`);
+    loadLeagues();
   };
 
-  const joinLeague = () => {
+  const handleJoinLeague = async () => {
     if (!joinCode.trim()) {
       Alert.alert('Error', 'Please enter a league code');
       return;
     }
 
-    // Simulate joining a league
-    const joinedLeague: League = {
-      id: joinCode,
-      name: 'Sample League',
-      ownerId: 'otherUserId',
-      members: ['currentUserId', 'otherUserId'],
-      weeklyChallenge: generateWeeklyChallenge(),
-      isOwner: false,
-    };
-
-    setUserLeague(joinedLeague);
-    setShowJoinForm(false);
-    setJoinCode('');
-    Alert.alert('Success', `Joined league "${joinedLeague.name}"!`);
-  };
-
-  const leaveLeague = () => {
-    Alert.alert(
-      'Leave League',
-      'Are you sure you want to leave this league?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Leave', style: 'destructive', onPress: () => setUserLeague(null) },
-      ]
-    );
-  };
-
-  const inviteMember = () => {
-    if (!inviteUsername.trim()) {
-      Alert.alert('Error', 'Please enter a username');
-      return;
+    const response = await joinLeagueApi(joinCode);
+    if (response.error) {
+      Alert.alert('Error', response.error);
+    } else {
+      Alert.alert('Success', 'Joined league!');
+      setShowJoinForm(false);
+      setJoinCode('');
+      loadLeagues();
     }
-
-    Alert.alert('Invite Sent', `Invitation sent to ${inviteUsername}`);
-    setInviteUsername('');
   };
-
-  const generateWeeklyChallenge = () => {
-    const challenges = [
-      'Complete an 18-hole round under par',
-      'Achieve 3 birdies in a single round',
-      'Play 3 rounds this week',
-      'Improve your average score by 2 strokes',
-      'Complete a round with no bogeys',
-      'Play at a new golf course',
-    ];
-    return challenges[Math.floor(Math.random() * challenges.length)];
-  };
-
-  if (!userLeague) {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.header}>
-          <ThemedText type="title">League</ThemedText>
-        </ThemedView>
-
-        <ScrollView style={styles.content}>
-          <View style={styles.heroSection}>
-            <Text style={styles.heroIcon}>🏆</Text>
-            <Text style={styles.heroIconRow}>⛳ 🏌️ ⛳</Text>
-            <Text style={styles.heroTitle}>Join or Create a League</Text>
-            <Text style={styles.heroSubtext}>
-              Compete with friends in weekly challenges{'\n'}
-              and track your progress together
-            </Text>
-            <View style={styles.heroBenefits}>
-              <View style={styles.benefitItem}>
-                <Text style={styles.benefitIcon}>📊</Text>
-                <Text style={styles.benefitText}>Track Rankings</Text>
-              </View>
-              <View style={styles.benefitItem}>
-                <Text style={styles.benefitIcon}>🎯</Text>
-                <Text style={styles.benefitText}>Weekly Challenges</Text>
-              </View>
-              <View style={styles.benefitItem}>
-                <Text style={styles.benefitIcon}>👥</Text>
-                <Text style={styles.benefitText}>Play Together</Text>
-              </View>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowCreateForm(true)}
-          >
-            <Text style={styles.actionButtonText}>Create League</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.secondaryButton]}
-            onPress={() => setShowJoinForm(true)}
-          >
-            <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Join League</Text>
-          </TouchableOpacity>
-
-          {showCreateForm && (
-            <ThemedView style={styles.formSection}>
-              <ThemedText type="subtitle">Create New League</ThemedText>
-              <TextInput
-                style={styles.input}
-                placeholder="League Name"
-                value={leagueName}
-                onChangeText={setLeagueName}
-              />
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[styles.formButton, styles.cancelButton]}
-                  onPress={() => {
-                    setShowCreateForm(false);
-                    setLeagueName('');
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.formButton, styles.confirmButton]}
-                  onPress={createLeague}
-                >
-                  <Text style={styles.confirmButtonText}>Create</Text>
-                </TouchableOpacity>
-              </View>
-            </ThemedView>
-          )}
-
-          {showJoinForm && (
-            <ThemedView style={styles.formSection}>
-              <ThemedText type="subtitle">Join League</ThemedText>
-              <TextInput
-                style={styles.input}
-                placeholder="League Code"
-                value={joinCode}
-                onChangeText={setJoinCode}
-              />
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[styles.formButton, styles.cancelButton]}
-                  onPress={() => {
-                    setShowJoinForm(false);
-                    setJoinCode('');
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.formButton, styles.confirmButton]}
-                  onPress={joinLeague}
-                >
-                  <Text style={styles.confirmButtonText}>Join</Text>
-                </TouchableOpacity>
-              </View>
-            </ThemedView>
-          )}
-        </ScrollView>
-      </ThemedView>
-    );
-  }
 
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.header}>
-        <ThemedText type="title">{userLeague.name}</ThemedText>
-        {userLeague.isOwner && <ThemedText style={styles.ownerBadge}>Owner</ThemedText>}
+        <ThemedText type="title">Leagues</ThemedText>
+        <ThemedText style={styles.ownerBadge}>See the clubs you belong to</ThemedText>
       </ThemedView>
 
       <ScrollView style={styles.content}>
-        <ThemedView style={styles.section}>
-          <ThemedText type="subtitle">Weekly Challenge</ThemedText>
-          <Text style={styles.challengeText}>{userLeague.weeklyChallenge}</Text>
+        <ThemedView style={styles.heroSection}>
+          <Text style={styles.heroIcon}>🏆</Text>
+          <Text style={styles.heroTitle}>Compete together</Text>
+          <Text style={styles.heroSubtext}>
+            Check out the leagues you are part of, then search or create a new one.
+          </Text>
         </ThemedView>
 
         <ThemedView style={styles.section}>
-          <ThemedText type="subtitle">Members ({userLeague.members.length})</ThemedText>
-          {userLeague.members.map((member, index) => (
-            <View key={index} style={styles.memberItem}>
-              <Text style={styles.memberName}>{member === 'currentUserId' ? 'You' : `Member ${index + 1}`}</Text>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">Your Leagues</ThemedText>
+            <TouchableOpacity onPress={loadLeagues}>
+              <Text style={styles.refreshText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isLoading && (
+            <View style={styles.centered}>
+              <ActivityIndicator color={GolfColors.primary} />
+            </View>
+          )}
+
+          {!!error && (
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+          )}
+
+          {!isLoading && !error && leagues.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🌱</Text>
+              <Text style={styles.emptyText}>No leagues yet. Start one below!</Text>
+            </View>
+          )}
+
+          {!isLoading && leagues.map((league) => (
+            <View key={league.id} style={styles.leagueCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.leagueName}>{league.name || 'Untitled League'}</Text>
+                <Text style={styles.leagueMeta}>
+                  Members: {league.memberCount ?? 0}
+                </Text>
+              </View>
+              <View style={styles.leagueBadge}>
+                <Text style={styles.leagueBadgeText}>Active</Text>
+              </View>
             </View>
           ))}
         </ThemedView>
 
-        {userLeague.isOwner && (
-          <ThemedView style={styles.section}>
-            <ThemedText type="subtitle">Invite Members</ThemedText>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={() => setShowJoinForm((prev) => !prev)}
+        >
+          <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+            Search / Join League
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => setShowCreateForm((prev) => !prev)}
+        >
+          <Text style={styles.actionButtonText}>Create League</Text>
+        </TouchableOpacity>
+
+        {showJoinForm && (
+          <ThemedView style={styles.formSection}>
+            <ThemedText type="subtitle">Join League</ThemedText>
             <TextInput
               style={styles.input}
-              placeholder="Username"
-              value={inviteUsername}
-              onChangeText={setInviteUsername}
+              placeholder="League Code"
+              value={joinCode}
+              onChangeText={setJoinCode}
             />
-            <TouchableOpacity style={styles.inviteButton} onPress={inviteMember}>
-              <Text style={styles.inviteButtonText}>Send Invite</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.formButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowJoinForm(false);
+                  setJoinCode('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.formButton, styles.confirmButton]}
+                onPress={handleJoinLeague}
+              >
+                <Text style={styles.confirmButtonText}>Join</Text>
+              </TouchableOpacity>
+            </View>
           </ThemedView>
         )}
 
-        <TouchableOpacity style={styles.leaveButton} onPress={leaveLeague}>
-          <Text style={styles.leaveButtonText}>Leave League</Text>
-        </TouchableOpacity>
+        {showCreateForm && (
+          <ThemedView style={styles.formSection}>
+            <ThemedText type="subtitle">Create New League</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="League Name"
+              value={leagueName}
+              onChangeText={setLeagueName}
+            />
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.formButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowCreateForm(false);
+                  setLeagueName('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.formButton, styles.confirmButton]}
+                onPress={handleCreateLeague}
+              >
+                <Text style={styles.confirmButtonText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </ThemedView>
+        )}
       </ScrollView>
     </ThemedView>
   );
@@ -323,6 +273,16 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  refreshText: {
+    color: GolfColors.primary,
+    fontWeight: '600',
+  },
   actionButton: {
     backgroundColor: GolfColors.primary,
     padding: 16,
@@ -387,34 +347,54 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 8,
   },
-  memberItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  memberName: {
-    fontSize: 16,
-  },
-  inviteButton: {
-    backgroundColor: GolfColors.success,
-    padding: 12,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  inviteButtonText: {
-    color: GolfColors.white,
-    fontWeight: '600',
-  },
-  leaveButton: {
-    backgroundColor: GolfColors.error,
+  leagueCard: {
+    backgroundColor: GolfColors.cardBg,
+    borderRadius: 10,
     padding: 16,
-    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#eaeaea',
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
+    gap: 12,
   },
-  leaveButtonText: {
+  leagueName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: GolfColors.primaryDark,
+  },
+  leagueMeta: {
+    color: GolfColors.gray,
+    marginTop: 4,
+  },
+  leagueBadge: {
+    backgroundColor: GolfColors.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  leagueBadgeText: {
     color: GolfColors.white,
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  emptyIcon: {
+    fontSize: 26,
+    marginBottom: 6,
+  },
+  emptyText: {
+    color: GolfColors.gray,
+  },
+  centered: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  errorText: {
+    color: GolfColors.error,
+    marginBottom: 8,
   },
 });

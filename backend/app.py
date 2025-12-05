@@ -540,7 +540,7 @@ def create_league_route():
     try:
         user_info = firebase_get_account_info(id_token)
         creator_uid = user_info["users"][0]["localId"]
-        league_id = create_league(get_db(), creator_uid, league_name, member_uids)
+        league_id = create_league(get_db(), creator_uid, league_name, member_uids, id_token)
         return jsonify({"message": "League created", "league_id": league_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -558,12 +558,12 @@ def join_league_route():
     try:
         user_info = firebase_get_account_info(id_token)
         uid = user_info["users"][0]["localId"]
-        join_league(get_db(), uid, league_id)
+        join_league(get_db(), uid, league_id, id_token)
         return jsonify({"message": "Joined league successfully"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@app.route("/delete_league", methods=["POST"])
+@app.route("/delete_league", methods=["DELETE"])
 def delete_league_route():
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -576,8 +576,23 @@ def delete_league_route():
     try:
         user_info = firebase_get_account_info(id_token)
         uid = user_info["users"][0]["localId"]
-        delete_league(get_db(), uid, league_id)
+        delete_league(get_db(), league_id, id_token)
         return jsonify({"message": "League deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/leagues", methods=["GET"])
+def list_leagues_route():
+    """Return leagues the current user belongs to."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+    try:
+        user_info = firebase_get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+        leagues = get_user_leagues(get_db(), uid, id_token)
+        return jsonify({"leagues": leagues}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
