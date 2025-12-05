@@ -254,12 +254,60 @@ def create_session(db: Database, uid, session_data):
         "videos": session_data.get("videos", []),
         "timestamp": datetime.now().isoformat(),
         "course_rating": course_rating,
-        "normalized_score": normalized_score
+        "normalized_score": normalized_score,
+        "likes": {},
+        "comments": {},
     }
 
     session_ref = db.child("sessions").push(session)
     update_user_final_score(db, uid)
     return session_ref["name"]  # Return the session ID
+
+
+def toggle_like(db: Database, session_id: str, uid: str) -> Dict[str, Any]:
+    """Toggle like for a session by a user and return updated counts/state."""
+    session_ref = db.child("sessions").child(session_id)
+    session = session_ref.get().val()
+    if not session:
+        raise ValueError("Session not found")
+
+    likes = session.get("likes", {}) or {}
+    if uid in likes:
+        likes.pop(uid, None)
+        liked = False
+    else:
+        likes[uid] = True
+        liked = True
+
+    session_ref.update({"likes": likes})
+    like_count = len(likes)
+    return {"liked": liked, "like_count": like_count}
+
+
+def add_comment(db: Database, session_id: str, uid: str, username: str, text: str) -> Dict[str, Any]:
+    """Add a comment to a session and return the new comment payload."""
+    if not text.strip():
+        raise ValueError("Comment cannot be empty")
+
+    session_ref = db.child("sessions").child(session_id)
+    session = session_ref.get().val()
+    if not session:
+        raise ValueError("Session not found")
+
+    comment_id = datetime.now().isoformat()
+    comment = {
+        "id": comment_id,
+        "uid": uid,
+        "username": username,
+        "text": text.strip(),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    existing_comments = session.get("comments", {}) or {}
+    existing_comments[comment_id] = comment
+    session_ref.update({"comments": existing_comments})
+
+    return comment
 
 def get_user_sessions(db: Database, uid, limit=None):
     """Get all sessions for a specific user"""

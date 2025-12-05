@@ -176,6 +176,40 @@ export const deleteSession = async (sessionId: string): Promise<ApiResponse<{ me
   }
 };
 
+export const toggleLike = async (sessionId: string): Promise<ApiResponse<{ liked: boolean; like_count: number }>> => {
+  try {
+    const response = await api.post(`/sessions/${sessionId}/like`);
+    return { data: response.data };
+  } catch (error: any) {
+    let errorMessage = error.response?.data?.error || 'Failed to like session';
+    if (error.response?.status === 401) {
+      errorMessage = 'Please sign in to like posts';
+    }
+    return { error: errorMessage };
+  }
+};
+
+export interface SessionComment {
+  id: string;
+  uid: string;
+  username: string;
+  text: string;
+  timestamp: string;
+}
+
+export const addComment = async (sessionId: string, text: string): Promise<ApiResponse<{ comment: SessionComment }>> => {
+  try {
+    const response = await api.post(`/sessions/${sessionId}/comments`, { text });
+    return { data: response.data };
+  } catch (error: any) {
+    let errorMessage = error.response?.data?.error || 'Failed to add comment';
+    if (error.response?.status === 401) {
+      errorMessage = 'Please sign in to comment';
+    }
+    return { error: errorMessage };
+  }
+};
+
 export const getFeedSessions = async (limit: number = 20): Promise<ApiResponse<{ sessions: GolfSession[] }>> => {
   try {
     console.log('[API] Fetching feed sessions with limit:', limit);

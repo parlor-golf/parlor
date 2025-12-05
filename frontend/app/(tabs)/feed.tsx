@@ -16,7 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getFeedSessions, GolfSession } from '@/services/api';
+import { getFeedSessions, GolfSession, toggleLike, addComment, SessionComment } from '@/services/api';
 import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
 import { FeedSkeletonLoader } from '@/components/SkeletonLoader';
 import { SpringConfigs, CustomEasing, createButtonPressAnimation } from '@/utils/animations';
@@ -25,6 +25,8 @@ const { width } = Dimensions.get('window');
 
 export default function Feed() {
   const [sessions, setSessions] = useState<GolfSession[]>([]);
+  const [likeState, setLikeState] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const [commentState, setCommentState] = useState<Record<string, SessionComment[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -95,6 +97,19 @@ export default function Feed() {
     if (result.data && result.data.sessions) {
       console.log('[Feed] Loaded sessions:', result.data.sessions.length);
       setSessions(result.data.sessions);
+      const initialLikes: Record<string, { liked: boolean; count: number }> = {};
+      const initialComments: Record<string, SessionComment[]> = {};
+      result.data.sessions.forEach((session) => {
+        const likes = (session as any).likes || {};
+        const comments = (session as any).comments || {};
+        initialLikes[session.id || ''] = {
+          liked: false,
+          count: Object.keys(likes).length,
+        };
+        initialComments[session.id || ''] = Object.values(comments) as SessionComment[];
+      });
+      setLikeState(initialLikes);
+      setCommentState(initialComments);
     } else if (result.error) {
       console.error('[Feed] Error loading feed:', result.error);
       Alert.alert('Error', `Failed to load feed: ${result.error}`);
@@ -159,11 +174,70 @@ export default function Feed() {
   };
 
   const handleLike = (sessionId: string) => {
-    Alert.alert('Liked!', 'You liked this round. (Feature coming soon)');
+    if (!sessionId) return;
+
+    // Optimistic UI
+    setLikeState(prev => {
+      const current = prev[sessionId] || { liked: false, count: 0 };
+      return {
+        ...prev,
+        [sessionId]: {
+          liked: !current.liked,
+          count: current.count + (current.liked ? -1 : 1),
+        },
+      };
+    });
+
+    toggleLike(sessionId).then((result) => {
+      if (result.error) {
+        Alert.alert('Error', result.error);
+        // rollback
+        setLikeState(prev => {
+          const current = prev[sessionId] || { liked: false, count: 0 };
+          return {
+            ...prev,
+            [sessionId]: {
+              liked: !current.liked,
+              count: current.count + (current.liked ? -1 : 1),
+            },
+          };
+        });
+      } else if (result.data) {
+        setLikeState(prev => ({
+          ...prev,
+          [sessionId]: {
+            liked: result.data.liked,
+            count: result.data.like_count,
+          },
+        }));
+      }
+    });
   };
 
   const handleComment = (sessionId: string) => {
-    Alert.alert('Comments', 'Comments feature coming soon!');
+    Alert.prompt(
+      'Add Comment',
+      'Share your thoughts on this round',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Post',
+          onPress: async (text) => {
+            if (!text) return;
+            const result = await addComment(sessionId, text);
+            if (result.error) {
+              Alert.alert('Error', result.error);
+            } else if (result.data?.comment) {
+              setCommentState(prev => ({
+                ...prev,
+                [sessionId]: [...(prev[sessionId] || []), result.data!.comment],
+              }));
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
   };
 
   const handleShare = async (session: GolfSession) => {
@@ -328,10 +402,16 @@ export default function Feed() {
         {/* Action Bar */}
         <View style={styles.actionBar}>
           <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(session.id || '')}>
-            <Ionicons name="heart-outline" size={22} color={GolfColors.gray} />
+            <Ionicons
+              name={likeState[session.id || '']?.liked ? 'heart' : 'heart-outline'}
+              size={22}
+              color={likeState[session.id || '']?.liked ? GolfColors.error : GolfColors.gray}
+            />
+            <Text style={styles.actionCount}>{likeState[session.id || '']?.count ?? 0}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={() => handleComment(session.id || '')}>
             <Ionicons name="chatbubble-outline" size={20} color={GolfColors.gray} />
+            <Text style={styles.actionCount}>{(commentState[session.id || ''] || []).length}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(session)}>
             <Ionicons name="share-outline" size={22} color={GolfColors.gray} />
@@ -703,8 +783,15 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  actionCount: {
+    fontSize: 13,
+    color: GolfColors.gray,
   },
   bottomSpacer: {
     height: 100,
