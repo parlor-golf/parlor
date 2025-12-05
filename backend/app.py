@@ -453,6 +453,46 @@ def get_user_profile(uid):
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+@app.route("/sessions/<session_id>/like", methods=["POST"])
+def like_session_route(session_id):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    try:
+        user_info = firebase_get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+        result = toggle_like(get_db(), session_id, uid)
+        return jsonify(result), 200
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/sessions/<session_id>/comments", methods=["POST"])
+def add_comment_route(session_id):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
+    id_token = auth_header.split(" ")[1]
+
+    data = request.json or {}
+    text = data.get("text", "")
+
+    try:
+        user_info = firebase_get_account_info(id_token)
+        uid = user_info["users"][0]["localId"]
+        username = get_db().child("users").child(uid).child("name").get().val() or "Unknown"
+        comment = add_comment(get_db(), session_id, uid, username, text)
+        return jsonify({"comment": comment}), 201
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
     try:
         user_data = get_db().child("users").child(uid).get().val() or {}
         if not user_data:
