@@ -16,19 +16,33 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getFeedSessions, GolfSession, toggleLike, addComment, SessionComment } from '@/services/api';
-import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
+import { getFeedSessions, GolfSession, toggleLike, addComment, SessionComment, deleteSession } from '@/services/api';
+import { GolfColors, Shadows, Spacing, BorderRadius, Colors, Gradients } from '@/constants/theme';
 import { FeedSkeletonLoader } from '@/components/SkeletonLoader';
 import { SpringConfigs, CustomEasing, createButtonPressAnimation } from '@/utils/animations';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
 export default function Feed() {
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+  const dynamicColors = {
+    background: isDarkMode ? Colors.dark.background : GolfColors.lightGray,
+    card: isDarkMode ? '#223222' : GolfColors.white,
+    overlayCard: isDarkMode ? '#1e2c1e' : 'rgba(0,0,0,0.02)',
+    textPrimary: isDarkMode ? Colors.dark.text : GolfColors.black,
+    textSecondary: isDarkMode ? Colors.dark.icon : GolfColors.gray,
+    divider: isDarkMode ? '#2f4230' : GolfColors.lightGray,
+    statGradient: isDarkMode ? Gradients.cardDark : ['#F8FCF9', '#EBF5ED'],
+  };
   const [sessions, setSessions] = useState<GolfSession[]>([]);
   const [likeState, setLikeState] = useState<Record<string, { liked: boolean; count: number }>>({});
   const [commentState, setCommentState] = useState<Record<string, SessionComment[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUid, setCurrentUid] = useState<string>('');
 
   // Animation refs for staggered list
   const cardAnimations = useRef<{ opacity: Animated.Value; translateY: Animated.Value; scale: Animated.Value }[]>([]).current;
@@ -48,6 +62,9 @@ export default function Feed() {
 
   useEffect(() => {
     loadFeed();
+    AsyncStorage.getItem('uid').then((uid) => {
+      if (uid) setCurrentUid(uid);
+    });
     // Animate header in
     Animated.spring(headerAnim, {
       toValue: 1,
@@ -255,19 +272,45 @@ export default function Feed() {
   };
 
   const handleMoreOptions = (session: GolfSession) => {
-    Alert.alert(
-      'Options',
-      'What would you like to do?',
-      [
-        { text: 'Report', onPress: () => Alert.alert('Reported', 'Thank you for your feedback.') },
-        { text: 'Hide', onPress: () => Alert.alert('Hidden', 'This post will be hidden from your feed.') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    const isOwner = session.uid && session.uid === currentUid;
+    const options = [
+      { text: 'Report', onPress: () => Alert.alert('Reported', 'Thank you for your feedback.') },
+    ];
+
+    if (isOwner) {
+      options.push({
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          if (!session.id) return;
+          deleteSession(session.id).then((result) => {
+            if (result.error) {
+              Alert.alert('Error', result.error);
+            } else {
+              setSessions(prev => prev.filter(s => s.id !== session.id));
+              setLikeState(prev => {
+                const updated = { ...prev };
+                delete updated[session.id!];
+                return updated;
+              });
+              setCommentState(prev => {
+                const updated = { ...prev };
+                delete updated[session.id!];
+                return updated;
+              });
+            }
+          });
+        },
+      });
+    }
+
+    options.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert('Options', 'What would you like to do?', options);
   };
 
   const handleNotifications = () => {
-    Alert.alert('Notifications', 'Notifications feature coming soon!');
+    router.push('/(tabs)/notifications');
   };
 
   const handleFindFriends = () => {
@@ -296,6 +339,7 @@ export default function Feed() {
         style={[
           styles.sessionCard,
           {
+            backgroundColor: dynamicColors.card,
             opacity: anim.opacity,
             transform: [
               { translateY: anim.translateY },
@@ -322,10 +366,10 @@ export default function Feed() {
               </Text>
             </LinearGradient>
             <View style={styles.sessionHeaderInfo}>
-              <Text style={styles.username}>{session.username || 'Unknown'}</Text>
+              <Text style={[styles.username, { color: dynamicColors.textPrimary }]}>{session.username || 'Unknown'}</Text>
               <View style={styles.metaRow}>
-                <Ionicons name="time-outline" size={12} color={GolfColors.gray} />
-                <Text style={styles.timeAgo}>{formatDate(session.timestamp || session.endTime || '')}</Text>
+                <Ionicons name="time-outline" size={12} color={dynamicColors.textSecondary} />
+                <Text style={[styles.timeAgo, { color: dynamicColors.textSecondary }]}>{formatDate(session.timestamp || session.endTime || '')}</Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -363,28 +407,28 @@ export default function Feed() {
         <View style={styles.courseInfo}>
           <View style={styles.courseNameContainer}>
             <Ionicons name="golf" size={18} color={GolfColors.primary} />
-            <Text style={styles.courseName}>{session.courseName}</Text>
+            <Text style={[styles.courseName, { color: dynamicColors.textPrimary }]}>{session.courseName}</Text>
           </View>
           <View style={styles.holesInfo}>
-            <Text style={styles.holesText}>{session.holes} holes</Text>
+            <Text style={[styles.holesText, { color: dynamicColors.textSecondary }]}>{session.holes} holes</Text>
           </View>
         </View>
 
         {/* Score Stats */}
         <View style={styles.statsContainer}>
           <LinearGradient
-            colors={['#F8FCF9', '#EBF5ED']}
+            colors={dynamicColors.statGradient as any}
             style={styles.statsGradient}
           >
             <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Score</Text>
-              <Text style={styles.statValue}>{session.totalScore}</Text>
+              <Text style={[styles.statLabel, { color: dynamicColors.textSecondary }]}>Score</Text>
+              <Text style={[styles.statValue, { color: dynamicColors.textPrimary }]}>{session.totalScore}</Text>
             </View>
 
             <View style={styles.statDivider} />
 
             <View style={styles.statItem}>
-              <Text style={styles.statLabel}>To Par</Text>
+              <Text style={[styles.statLabel, { color: dynamicColors.textSecondary }]}>To Par</Text>
               <Text style={[styles.statValue, { color: getScoreColor(toPar) }]}>
                 {toParText}
               </Text>
@@ -393,27 +437,27 @@ export default function Feed() {
             <View style={styles.statDivider} />
 
             <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Duration</Text>
-              <Text style={styles.statValue}>{formatDuration(session.duration)}</Text>
+              <Text style={[styles.statLabel, { color: dynamicColors.textSecondary }]}>Duration</Text>
+              <Text style={[styles.statValue, { color: dynamicColors.textPrimary }]}>{formatDuration(session.duration)}</Text>
             </View>
           </LinearGradient>
         </View>
 
         {/* Action Bar */}
-        <View style={styles.actionBar}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(session.id || '')}>
+        <View style={[styles.actionBar, { borderTopColor: dynamicColors.divider }]}>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: dynamicColors.overlayCard }]} onPress={() => handleLike(session.id || '')}>
             <Ionicons
               name={likeState[session.id || '']?.liked ? 'heart' : 'heart-outline'}
               size={22}
               color={likeState[session.id || '']?.liked ? GolfColors.error : GolfColors.gray}
             />
-            <Text style={styles.actionCount}>{likeState[session.id || '']?.count ?? 0}</Text>
+            <Text style={[styles.actionCount, { color: dynamicColors.textSecondary }]}>{likeState[session.id || '']?.count ?? 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => handleComment(session.id || '')}>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: dynamicColors.overlayCard }]} onPress={() => handleComment(session.id || '')}>
             <Ionicons name="chatbubble-outline" size={20} color={GolfColors.gray} />
-            <Text style={styles.actionCount}>{(commentState[session.id || ''] || []).length}</Text>
+            <Text style={[styles.actionCount, { color: dynamicColors.textSecondary }]}>{(commentState[session.id || ''] || []).length}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(session)}>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: dynamicColors.overlayCard }]} onPress={() => handleShare(session)}>
             <Ionicons name="share-outline" size={22} color={GolfColors.gray} />
           </TouchableOpacity>
         </View>
@@ -422,7 +466,7 @@ export default function Feed() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: dynamicColors.background }]}>
       {/* Header */}
       <LinearGradient
         colors={[GolfColors.primary, GolfColors.primaryDark]}
@@ -475,14 +519,14 @@ export default function Feed() {
               imageStyle={styles.emptyBackgroundImage}
             >
               <LinearGradient
-                colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
+                colors={isDarkMode ? ['rgba(26,46,26,0.95)', 'rgba(26,46,26,0.85)'] : ['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
                 style={styles.emptyOverlay}
               >
                 <View style={styles.emptyIconContainer}>
                   <Ionicons name="golf" size={48} color={GolfColors.primary} />
                 </View>
-                <Text style={styles.emptyTitle}>Your Feed is Empty</Text>
-                <Text style={styles.emptySubtext}>
+                <Text style={[styles.emptyTitle, { color: dynamicColors.textPrimary }]}>Your Feed is Empty</Text>
+                <Text style={[styles.emptySubtext, { color: dynamicColors.textSecondary }]}>
                   Start recording rounds or add friends to see their latest golf sessions
                 </Text>
 
@@ -788,6 +832,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.xs,
     gap: Spacing.xs,
+    backgroundColor: GolfColors.cardBg,
+    borderRadius: BorderRadius.sm,
   },
   actionCount: {
     fontSize: 13,

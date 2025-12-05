@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { GolfColors, Shadows, Spacing, BorderRadius } from '@/constants/theme';
+import { GolfColors, Shadows, Spacing, BorderRadius, Colors, Gradients } from '@/constants/theme';
 import { SpringConfigs, createButtonPressAnimation } from '@/utils/animations';
 import { getRankings } from '@/services/api';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface PlayerRanking {
   id: string;
@@ -30,6 +31,17 @@ type HoleType = '9-hole' | '18-hole';
 type TimeRange = 'weekly' | 'monthly' | 'yearly';
 
 export default function Ranking() {
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+  const dynamicColors = {
+    background: isDarkMode ? Colors.dark.background : GolfColors.lightGray,
+    card: isDarkMode ? '#223222' : GolfColors.white,
+    overlay: isDarkMode ? '#1e2c1e' : GolfColors.cardBg,
+    textPrimary: isDarkMode ? Colors.dark.text : GolfColors.black,
+    textSecondary: isDarkMode ? Colors.dark.icon : GolfColors.gray,
+    divider: isDarkMode ? '#2f4230' : GolfColors.lightGray,
+    infoGradient: isDarkMode ? Gradients.cardDark : [GolfColors.cardBg, GolfColors.cardBgAlt],
+  };
   const [filterType, setFilterType] = useState<FilterType>('friends');
   const [holeFilter, setHoleFilter] = useState<HoleType>('18-hole');
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
@@ -143,7 +155,7 @@ export default function Ranking() {
   };
 
   const renderRankingItem = (player: PlayerRanking, rank: number) => (
-    <View key={player.id} style={styles.rankingItem}>
+    <View key={player.id} style={[styles.rankingItem, { backgroundColor: dynamicColors.card }]}>
       <View style={styles.rankInfo}>
         <LinearGradient
           colors={rank <= 3 ? ['#FFD700', '#FFA500'] : [GolfColors.primary, GolfColors.primaryLight]}
@@ -160,17 +172,21 @@ export default function Ranking() {
           )}
         </LinearGradient>
         <View style={styles.playerInfo}>
-          <Text style={[styles.playerName, player.name === 'You' && styles.currentPlayer]}>
+          <Text style={[
+            styles.playerName,
+            { color: dynamicColors.textPrimary },
+            player.name === 'You' && styles.currentPlayer
+          ]}>
             {player.name}
           </Text>
-          <Text style={styles.playerStats}>
+          <Text style={[styles.playerStats, { color: dynamicColors.textSecondary }]}>
             {player.rounds} rounds • HCP {player.handicap}
           </Text>
         </View>
       </View>
-      <View style={styles.scoreInfo}>
-        <Text style={styles.netScore}>{player.netScore}</Text>
-        <Text style={styles.scoreLabel}>Net</Text>
+      <View style={[styles.scoreInfo, { backgroundColor: dynamicColors.overlay }]}>
+        <Text style={[styles.netScore, { color: GolfColors.underPar }]}>{player.netScore}</Text>
+        <Text style={[styles.scoreLabel, { color: dynamicColors.textSecondary }]}>Net</Text>
       </View>
     </View>
   );
@@ -181,7 +197,7 @@ export default function Ranking() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: dynamicColors.background }]}>
       {/* Header */}
       <LinearGradient
         colors={[GolfColors.primary, GolfColors.primaryDark]}
@@ -224,12 +240,13 @@ export default function Ranking() {
             {
               opacity: filterCardAnim,
               transform: [{ scale: filterCardScale }],
+              backgroundColor: dynamicColors.card,
             },
           ]}
         >
           {/* Category Filter */}
           <View style={styles.filterSection}>
-            <Text style={styles.filterLabel}>Category</Text>
+            <Text style={[styles.filterLabel, { color: dynamicColors.textSecondary }]}>Category</Text>
             <View style={styles.filterRow}>
               {(['friends', 'league', 'global'] as FilterType[]).map((type) => (
                 <TouchableOpacity
@@ -253,7 +270,7 @@ export default function Ranking() {
           {/* Hole & Time Filters */}
           <View style={styles.filterRow}>
             <View style={styles.filterHalf}>
-              <Text style={styles.filterLabel}>Holes</Text>
+              <Text style={[styles.filterLabel, { color: dynamicColors.textSecondary }]}>Holes</Text>
               <View style={styles.smallFilterRow}>
                 {(['9-hole', '18-hole'] as HoleType[]).map((type) => (
                   <TouchableOpacity
@@ -270,7 +287,7 @@ export default function Ranking() {
             </View>
 
             <View style={styles.filterHalf}>
-              <Text style={styles.filterLabel}>Period</Text>
+              <Text style={[styles.filterLabel, { color: dynamicColors.textSecondary }]}>Period</Text>
               <View style={styles.smallFilterRow}>
                 {(['weekly', 'monthly', 'yearly'] as TimeRange[]).map((range) => (
                   <TouchableOpacity
@@ -299,20 +316,20 @@ export default function Ranking() {
             <Animated.View style={{ transform: [{ rotate: trophyRotation }] }}>
               <Ionicons name="trophy" size={20} color={GolfColors.primary} />
             </Animated.View>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: dynamicColors.textPrimary }]}>
               {filterType.charAt(0).toUpperCase() + filterType.slice(1)} Rankings
             </Text>
           </View>
 
           {loading ? (
-            <View style={styles.loadingContainer}>
+            <View style={[styles.loadingContainer, { backgroundColor: dynamicColors.card }]}>
               <ActivityIndicator size="large" color={GolfColors.primary} />
-              <Text style={styles.loadingText}>Loading rankings...</Text>
+              <Text style={[styles.loadingText, { color: dynamicColors.textSecondary }]}>Loading rankings...</Text>
             </View>
           ) : error ? (
-            <View style={styles.errorContainer}>
+            <View style={[styles.errorContainer, { backgroundColor: dynamicColors.card }]}>
               <Ionicons name="alert-circle" size={48} color="#E74C3C" />
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={[styles.errorText, { color: '#E74C3C' }]}>{error}</Text>
               <TouchableOpacity style={styles.retryButton} onPress={fetchRankings}>
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
@@ -325,14 +342,14 @@ export default function Ranking() {
                 imageStyle={styles.emptyBackgroundImage}
               >
                 <LinearGradient
-                  colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
+                  colors={isDarkMode ? ['rgba(26,46,26,0.95)', 'rgba(26,46,26,0.85)'] : ['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
                   style={styles.emptyOverlay}
                 >
                   <View style={styles.emptyIconContainer}>
                     <Ionicons name="trophy" size={48} color={GolfColors.sand} />
                   </View>
-                  <Text style={styles.emptyTitle}>No Rankings Yet</Text>
-                  <Text style={styles.emptySubtext}>
+                  <Text style={[styles.emptyTitle, { color: dynamicColors.textPrimary }]}>No Rankings Yet</Text>
+                  <Text style={[styles.emptySubtext, { color: dynamicColors.textSecondary }]}>
                     Record your rounds and compete with friends to climb the leaderboard
                   </Text>
 
@@ -355,11 +372,11 @@ export default function Ranking() {
         {/* Info Card */}
         <View style={styles.infoCard}>
           <LinearGradient
-            colors={[GolfColors.cardBg, GolfColors.cardBgAlt]}
+            colors={dynamicColors.infoGradient as any}
             style={styles.infoGradient}
           >
             <Ionicons name="information-circle" size={20} color={GolfColors.primary} />
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoText, { color: dynamicColors.textSecondary }]}>
               Rankings use World Handicap System net scores. Play more rounds to improve!
             </Text>
           </LinearGradient>
