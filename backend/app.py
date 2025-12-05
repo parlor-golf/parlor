@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from pyrebase.pyrebase import Database, Auth
 from functions import *
 from typing import Dict, Any, Tuple
 from openai import OpenAI
@@ -119,7 +120,7 @@ def get_my_final_score():
     id_token = auth_header.split(" ")[1]
 
     try:
-        user_info = auth.get_account_info(id_token)
+        user_info = Auth.get_account_info(id_token)
         uid = user_info["users"][0]["localId"]
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -131,58 +132,12 @@ def get_my_final_score():
 
     return jsonify({"final_score": final_score}), 200
     
-@app.route("/delete-score/<score_id>", methods=["DELETE"])
-def delete_score_route(score_id):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-
-    id_token = auth_header.split(" ")[1]
-
-    try:
-        user_info = firebase_get_account_info(id_token)
-        uid = user_info['users'][0]['localId']
-
-        score = db.child("scores").child(score_id).get().val()
-        if not score:
-            return jsonify({"error": "Score not found"}), 404
-
-        if score.get("uid") != uid:
-            return jsonify({"error": "Unauthorized"}), 403
-
-        delete_score(get_db(), score_id)
-        return jsonify({"message": "Score deleted"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 401
 
 @app.route("/leaderboard", methods=["GET"])
 def leaderboard():
     course = request.args.get("course")
     data = get_leaderboard(get_db(), course)
     return jsonify(data)
-
-@app.route("/courses", methods=["GET"])
-def get_courses_route():
-    data = get_courses(db)
-    return jsonify(data)
-
-@app.route("/scores", methods=["GET"])
-def get_scores_route():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-
-    id_token = auth_header.split(" ")[1]
-
-    try:
-        user_info = firebase_get_account_info(id_token)
-        uid = user_info['users'][0]['localId']
-
-        data = get_scores(get_db(), uid)
-        return jsonify(data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 401
 
 @app.route("/sign_up", methods=["POST"])
 def sign_up():
@@ -367,23 +322,6 @@ def get_friends_route():
 
         friends = get_friends(get_db(), uid)
         return jsonify({"friends": friends}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-
-@app.route("/friends/scores", methods=["GET"])
-def get_friends_scores_route():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-    id_token = auth_header.split(" ")[1]
-
-    try:
-        user_info = firebase_get_account_info(id_token)
-        uid = user_info["users"][0]["localId"]
-
-        data = get_friends_scores(get_db(), uid)
-        return jsonify(data), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 

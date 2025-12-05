@@ -159,36 +159,6 @@ def update_user_final_score(db: Database, uid: str) -> float | None:
     db.child("users").child(uid).update({"final_score": final_score})
     return final_score
 
-def delete_score(db: Database, score_id):
-    db.child("scores").child(score_id).remove()
-
-def get_scores(db: Database, uid) :
-    scores = db.child("scores").get()
-    results = []
-    if scores.each():
-        for s in scores.each():
-            data = s.val()
-            if data.get("uid") == uid:
-                results.append({
-                    "id": s.key(),
-                    "uid": data.get("uid"),
-                    "name": data.get("name"),
-                    "course": data.get("course"),
-                    "score": data.get("score"),
-                    "timestamp": data.get("timestamp")
-                })
-    return results
-
-def get_courses(db: Database):
-    scores = db.child("scores").get()
-    courses = set()
-    if scores.each():
-        for s in scores.each():
-            data = s.val()
-            if "course" in data:
-                courses.add(data["course"])
-    return list(courses)
-
 def get_leaderboard(db: Database, course=None):
     sessions = db.child("sessions").get()
     player_scores = {}
@@ -255,27 +225,6 @@ def get_friends(db: Database, uid):
     if not friends:
         return []
     return list(friends.keys())
-
-def get_friends_scores(db: Database, uid):
-    friends = get_friends(db, uid)
-    scores = db.child("scores").get()
-    if not scores.each():
-        return []
-    
-    results = []
-    for s in scores.each():
-        data = s.val()
-        if data.get("uid") in friends:
-            results.append({
-                "id": s.key(),
-                "uid": data.get("uid"),
-                "name": data.get("name"),
-                "course": data.get("course"),
-                "score": data.get("score"),
-                "timestamp": data.get("timestamp")
-            })
-    results.sort(key=lambda x: x["timestamp"], reverse=True)
-    return results
 
 def are_friends(db: Database, uid1, uid2) -> bool:
     return bool(db.child("friends").child(uid1).child(uid2).get().val())
